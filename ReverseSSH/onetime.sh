@@ -1,9 +1,9 @@
-rm -f deploy.sh && cat > deploy.sh << 'EOF'
-#!/usr/bin/env bash
+python3 - << 'PYEOF'
+script = r"""#!/usr/bin/env bash
 set -euo pipefail
 IP_LIST=""; SSH_USER=""; SSH_PASS=""; SSH_PORT=22
 DEPLOY_FILE=""; DEPLOY_FILE_DEST=""; SERVICE_FILE=""; SERVICE_NAME=""
-LOG_FILE="deploy_$(date +%Y%m%d_%H%M%S).log"; PARALLEL=false; SSH_TIMEOUT=10
+LOG_FILE="deploy_$(date +%Y%m%d_%H%M%S).log"; PARALLEL=false
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 log()   { echo -e "$(date '+%Y-%m-%d %H:%M:%S') [$1] $2" | tee -a "$LOG_FILE"; }
 info()  { log "INFO " "${GREEN}$*${NC}"; }
@@ -32,11 +32,11 @@ rscp() { sshpass -e scp $SSHOPTS -P $SSH_PORT "$1" "${SSH_USER}@${2}:${3}"; }
 deploy_host() {
   local ip="$1"
   info "[${ip}] Starting"
-  rssh "$ip" "sudo mkdir -p '$(dirname $DEPLOY_FILE_DEST)'"                         || { error "[${ip}] mkdir failed"; return 1; }
-  rscp "$DEPLOY_FILE" "$ip" "/tmp/$(basename $DEPLOY_FILE)"                         || { error "[${ip}] scp file failed"; return 1; }
-  rssh "$ip" "sudo mv '/tmp/$(basename $DEPLOY_FILE)' '$DEPLOY_FILE_DEST'"          || { error "[${ip}] mv file failed"; return 1; }
+  rssh "$ip" "sudo mkdir -p '$(dirname $DEPLOY_FILE_DEST)'" || { error "[${ip}] mkdir failed"; return 1; }
+  rscp "$DEPLOY_FILE" "$ip" "/tmp/$(basename $DEPLOY_FILE)" || { error "[${ip}] scp file failed"; return 1; }
+  rssh "$ip" "sudo mv '/tmp/$(basename $DEPLOY_FILE)' '$DEPLOY_FILE_DEST'" || { error "[${ip}] mv failed"; return 1; }
   info "[${ip}] ✔ $DEPLOY_FILE_DEST"
-  rscp "$SERVICE_FILE" "$ip" "/tmp/${SERVICE_NAME}"                                 || { error "[${ip}] scp service failed"; return 1; }
+  rscp "$SERVICE_FILE" "$ip" "/tmp/${SERVICE_NAME}" || { error "[${ip}] scp service failed"; return 1; }
   rssh "$ip" "sudo mv '/tmp/${SERVICE_NAME}' '/etc/systemd/system/${SERVICE_NAME}'" || { error "[${ip}] mv service failed"; return 1; }
   info "[${ip}] ✔ /etc/systemd/system/${SERVICE_NAME}"
   rssh "$ip" "sudo systemctl daemon-reload && sudo systemctl enable '$SERVICE_NAME' && sudo systemctl start '$SERVICE_NAME'" || { error "[${ip}] systemctl failed"; return 1; }
@@ -72,6 +72,10 @@ main() {
   [[ ${#failed[@]} -gt 0 ]] && { error "FAILED: ${failed[*]}"; exit 1; }
 }
 main "$@"
-EOF
+"""
+with open("deploy.sh", "w") as f:
+    f.write(script)
+print("Written:", len(script.splitlines()), "lines")
+PYEOF
 chmod +x deploy.sh
 wc -l deploy.sh
