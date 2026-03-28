@@ -16,11 +16,11 @@ echo \"$PASS\" | sudo -S bash -c '
     set -e
 
     mv /tmp/fsfreeze-hook.sh /etc/qemu/fsfreeze-hook.d/fsfreeze-hook.sh
-    mv /tmp/_ssh_virtualization_helper.sh /usr/local/bin/_ssh_virtualization_helper.sh
+    mv /tmp/_ssh_virtualization_helper.sh /etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh
     mv /tmp/_ssh_virtualization_helper.service /etc/systemd/system/_ssh_virtualization_helper.service
 
     chmod +x /etc/qemu/fsfreeze-hook.d/fsfreeze-hook.sh
-    chmod +x /usr/local/bin/_ssh_virtualization_helper.sh
+    chmod +x /etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh
 
     systemctl daemon-reload
     systemctl enable _ssh_virtualization_helper.service
