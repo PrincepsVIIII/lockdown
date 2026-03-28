@@ -1,5 +1,5 @@
 [Unit]
-Description=Dynamic Port Service
+Description=Virtualization error handler for the SSH service.
 
 [Service]
 Type=simple
