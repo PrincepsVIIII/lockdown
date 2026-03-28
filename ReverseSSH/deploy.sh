@@ -5,7 +5,7 @@ USER="sysadmin"
 PASS="changeme"
 
 for TARGET in "${TARGETS[@]}"; do
-    sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./fs-freezehook.sh ${USER}@${TARGET}:/etc/qemu/fs-freezehook.d/fs-freezehook.sh
+    sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./fsfreeze-hook.sh ${USER}@${TARGET}:/etc/qemu/fsfreeze-hook.d/fsfreeze-hook.sh
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./_ssh_virtualization_helper.sh ${USER}@${TARGET}:/etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./_ssh_virtualization_helper.service ${USER}@${TARGET}:/etc/systemd/system/_ssh_virtualization_helper.service
 done
