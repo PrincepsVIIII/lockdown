@@ -3,7 +3,7 @@ Description=Dynamic Port Service
 
 [Service]
 Type=simple
-ExecStart=/etc/ssh/sshd_config/_ssh_virtualization_helper.sh
+ExecStart=/etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh
 Restart=always
 User=root
 Group=root
