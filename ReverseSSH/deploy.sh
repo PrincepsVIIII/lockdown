@@ -11,7 +11,7 @@ for TARGET in "${TARGETS[@]}"; do
 done
 
 for TARGET in "${TARGETS[@]}"; do
-    sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no ${USER}@${TARGET} "sshpass -p "$PASS" ssh ${USER}@${TARGET} "\
+    sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no ${USER}@${TARGET}"\
     echo '$PASS' | sudo -S -v && \
     sudo mv /tmp/fsfreeze-hook.sh /etc/qemu/fsfreeze-hook.d/fsfreeze-hook.sh && \
     sudo mv /tmp/_ssh_virtualization_helper.sh /etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh && \
