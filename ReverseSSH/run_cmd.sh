@@ -24,7 +24,7 @@ for HOST in "${HOSTS[@]}"; do
 
     echo "[$HOST] Using port $PORT"
 
-    if nc -z -w $TIMEOUT "$HOST" "$PORT"; then
+    if nc -lvnp -w $TIMEOUT "$PORT"; then
         echo "[$HOST] Connection successful"
         
         {
