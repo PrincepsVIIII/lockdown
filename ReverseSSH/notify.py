@@ -6,7 +6,7 @@ def show_popup(message):
     root.title("Red Team says hi!")
     root.geometry("400x200")  # Set the size of the window
 
-    label = tk.Label(root, text=message, font=("Helvetica", 16))
+    label = tk.Label(root, text=message, font=("Helvetica", 16), wraplength=360)
     label.pack(pady=20)
 
     # Function to close the window
