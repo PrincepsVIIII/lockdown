@@ -32,12 +32,14 @@ handle_target() {
     FOURTH=$(echo "$TARGET" | cut -d'.' -f4)
     PORT=$(( BASE_PORT + SECOND*100 + FOURTH ))
 
-    local CMD_STR=""
+    # Write commands to a temp file, one per line
+    local TMPFILE=$(mktemp)
     for cmd in "${CMDS[@]}"; do
-        CMD_STR+="echo '=== ${cmd} ==='; ${cmd}; "
+        echo "${cmd}" >> "$TMPFILE"
     done
+    echo "exit" >> "$TMPFILE"
 
-    tmux new-window -n "$TARGET" "printf '%s\n' '${CMD_STR}' | nc -lvnp $PORT; read -p 'Done. Press enter to close.'"
+    tmux new-window -n "$TARGET" "cat '$TMPFILE' | nc -lvnp $PORT; rm -f '$TMPFILE'; read -p 'Done. Press enter to close.'"
 }
 
 job_count=0
