@@ -31,6 +31,7 @@ handle_target() {
     CMD_BLOCK=""
     for cmd in "${CMDS[@]}"; do
         CMD_BLOCK+="
+echo \"[$TARGET] Running command $cmd\"
 expect -re \"\[#\$\] \"
 send \"$cmd\r\""
     done
