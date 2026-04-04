@@ -24,12 +24,17 @@ for TARGET in "${TARGETS[@]}"; do
 
     expect_script="
     spawn nc -lvnp 1110
+    expect {
+        -re \"\[#$\] \" { set timeout -1 }
+        timeout { puts \"Connection timed out\"; exit 1 }
+    }
     $(for cmd in "$@"; do
         echo "expect -re \"\[#$\] \""
         echo "send \"$cmd\r\""
     done)
     interact
     "
+
     echo "$expect_script"
     expect -c "$expect_script"
 
