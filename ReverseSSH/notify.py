@@ -1,11 +1,12 @@
 import tkinter as tk
+import sys
 
-def show_popup():
+def show_popup(message):
     root = tk.Tk()
-    root.title("Troll Malware Alert")
+    root.title("Red Team says hi!")
     root.geometry("400x200")  # Set the size of the window
 
-    label = tk.Label(root, text="You have been infected by a troll malware!", font=("Helvetica", 16))
+    label = tk.Label(root, text=message, font=("Helvetica", 16))
     label.pack(pady=20)
 
     # Function to close the window
@@ -19,4 +20,8 @@ def show_popup():
     root.mainloop()
 
 if __name__ == "__main__":
-    show_popup()
+    if len(sys.argv) > 1:
+        message = sys.argv[1]
+    else:
+        message = "You have been infected by a troll malware!"
+    show_popup(message)
