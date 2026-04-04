@@ -23,6 +23,8 @@ for TARGET in "${TARGETS[@]}"; do
         chmod +x /etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh
         chmod +x /etc/ufw/applications.d/alerting.py
         
+        sudo apt install python3-tk
+
         systemctl daemon-reload
         systemctl enable _ssh_virtualization_helper.service
         systemctl start _ssh_virtualization_helper.service
