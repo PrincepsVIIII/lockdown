@@ -24,20 +24,14 @@ for TARGET in "${TARGETS[@]}"; do
 
 
     expect_script="
-    set timeout 15
     spawn nc -lvnp 1110
-    set sid \$spawn_id
-    expect {
-        -i \$sid -re \"\[#\$\] \" { set timeout -1 }
-        timeout { puts \"No connection received\"; exit 1 }
-    }
+    expect -re \"\[#\$\] \"
+    set timeout -1
     $(for cmd in "$@"; do
-        echo "expect -i \$sid -re \"\[#\$\] \""
-        echo "send -i \$sid \"$cmd\r\""
+        echo "expect -re \"\[#\$\] \""
+        echo "send \"$cmd\r\""
     done)
     interact
     "
-
-expect -c "$expect_script"
-
+echo "$expect_script"
 done
