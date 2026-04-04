@@ -40,9 +40,4 @@ for TARGET in "${TARGETS[@]}"; do
 
 expect -c "$expect_script"
 
-expect -c "$expect_script"
-
-    echo "$expect_script"
-    expect -c "$expect_script"
-
 done
