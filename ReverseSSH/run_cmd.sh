@@ -32,20 +32,22 @@ handle_target() {
     CMD_BLOCK=""
     for cmd in "${CMDS[@]}"; do
         CMD_BLOCK+="
-expect -re \"\[#\$\] \"
-send \"$cmd\r\""
+    expect -re \"\[#\$\] \"
+    send \"$cmd\r\""
     done
-
+    CMD_BLOCK+="
+    expect -re \"\[#\$\] \"
+    send \"exit\r\"
+    expect eof"
     xterm -title "$TARGET:$PORT" -e bash -c "
-expect << 'EOF'
-spawn nc -lvnp $PORT
-expect -re \"\[#\$\] \"
-send \"python3 -c 'import pty;pty.spawn(\\\"/bin/bash\\\")'\r\"
-$CMD_BLOCK
-expect -re \"\[#\$\] \"
-interact
-EOF
-" &
+    expect << 'EOF'
+    spawn nc -lvnp $PORT
+    expect -re "\[#\$\] "
+    send "python3 -c 'import pty;pty.spawn(\"/bin/bash\")'\r"
+    $CMD_BLOCK
+    expect eof
+    EOF
+    " &
 }
 
 # Job pool: process targets MAX_PARALLEL at a time
