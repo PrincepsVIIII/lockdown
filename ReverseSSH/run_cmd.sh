@@ -15,29 +15,21 @@ echo "Usage: $0 \"cmd1\" \"cmd2\" ..."
 exit 1
 fi
 
-# Create a temporary file to hold the commands
-temp_commands=$(mktemp)
-
-for cmd in "$@"; do
-echo "$cmd" >> "$temp_commands"
-done
-
 for TARGET in "${TARGETS[@]}"; do
 echo "---- Checking $TARGET ----"
 SECOND=$(echo "$TARGET" | cut -d'.' -f2)
 FOURTH=$(echo "$TARGET" | cut -d'.' -f4)
 PORT=$(($BASE_PORT + $SECOND*100 + $FOURTH))
-echo "[$TARGET] Using port $PORT"
+echo "[$TARGET] Connecting over port $PORT"
 
-if timeout $TIMEOUT nc -lvnp "$PORT" > /tmp/out 2>/dev/null; then
+if timeout $TIMEOUT nc -lvnp "$PORT"; then
 echo "[$TARGET] Connection successful"
 {
-cat "$temp_commands" | while IFS= read -r line; do
-  echo "[$TARGET] Executing: $line"
-  echo "$line"
-done
-} | nc "$TARGET" "$PORT" | while IFS= read -r line; do
-echo "[$TARGET] Output: $line"
+    for cmd in "$@"; do
+        echo "$cmd"
+    done
+} | nc "$PORT" | while IFS= read -r line; do
+echo "[$TARGET] $line"
 done
 else
 echo "[$TARGET] Connection failed"
@@ -45,6 +37,3 @@ fi
 
 echo
 done
-
-# Clean up the temporary file
-rm -f "$temp_commands"
