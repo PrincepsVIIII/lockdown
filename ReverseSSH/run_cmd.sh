@@ -16,24 +16,29 @@ exit 1
 fi
 
 for TARGET in "${TARGETS[@]}"; do
-echo "---- Checking $TARGET ----"
-SECOND=$(echo "$TARGET" | cut -d'.' -f2)
-FOURTH=$(echo "$TARGET" | cut -d'.' -f4)
-PORT=$(($BASE_PORT + $SECOND*100 + $FOURTH))
-echo "[$TARGET] Connecting over port $PORT"
+    echo "---- Checking $TARGET ----"
+    SECOND=$(echo "$TARGET" | cut -d'.' -f2)
+    FOURTH=$(echo "$TARGET" | cut -d'.' -f4)
+    PORT=$(($BASE_PORT + $SECOND*100 + $FOURTH))
+    echo "[$TARGET] Connecting over port $PORT"
 
-if timeout $TIMEOUT nc -lvnp "$PORT"; then
-echo "[$TARGET] Connection successful"
-{
-    for cmd in "$@"; do
-        echo "$cmd"
-    done
-} | nc "$PORT" | while IFS= read -r line; do
-echo "[$TARGET] $line"
-done
-else
-echo "[$TARGET] Connection failed"
-fi
+    expect -c "
+    set timeout 10
+    spawn nc -lvnp 1110
+    expect {
+        \"$ \" {
+            set timeout -1
+            $(for cmd in "$@"; do
+                echo "send \"$cmd\r\""
+                echo "expect \"$ \""
+            done)
+        }
+        timeout {
+            puts \"Connection timed out\"
+            exit 1
+        }
+    }
+    interact
+    "
 
-echo
 done
