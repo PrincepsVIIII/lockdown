@@ -24,15 +24,16 @@ for HOST in "${HOSTS[@]}"; do
 
     echo "[$HOST] Using port $PORT"
 
-    if nc -lvnp "$PORT" -w $TIMEOUT; then
+    if nc -lvnp "$PORT"; then
         echo "[$HOST] Connection successful"
         
         {
             for cmd in "$@"; do
                 echo "$cmd"
             done
-        } | nc "$HOST" "$PORT"
-
+        } | nc "$PORT" | while IFS= read -r line; do
+        echo "[$HOST] $line"
+    done
     else
         echo "[$HOST] Connection failed"
     fi
