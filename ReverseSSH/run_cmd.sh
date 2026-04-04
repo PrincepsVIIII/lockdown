@@ -36,7 +36,7 @@ cat "$temp_commands" | while IFS= read -r line; do
   echo "[$TARGET] Executing: $line"
   echo "$line"
 done
-} | nc "$PORT" | while IFS= read -r line; do
+} | nc "$TARGET" "$PORT" | while IFS= read -r line; do
 echo "[$TARGET] Output: $line"
 done
 else
