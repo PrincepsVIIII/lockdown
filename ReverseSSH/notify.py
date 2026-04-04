@@ -23,5 +23,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         message = sys.argv[1]
     else:
-        message = "You have been infected by a troll malware!"
+        message = "I forgot to pass an argument but I'm sure it would've been smth funny so feel free to chuckle regardless."
     show_popup(message)
