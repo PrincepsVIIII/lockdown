@@ -22,18 +22,23 @@ for TARGET in "${TARGETS[@]}"; do
     PORT=$(($BASE_PORT + $SECOND*100 + $FOURTH))
     echo "[$TARGET] Connecting over port $PORT"
 
+
     expect_script="
-    spawn timeout 15 nc -lvnp 1110
+    set timeout 15
+    spawn nc -lvnp 1110
+    set sid \$spawn_id
     expect {
-        -re \"\[#\$\] \" { set timeout -1 }
-        eof { puts \"No connection received\"; exit 1 }
+        -i \$sid -re \"\[#\$\] \" { set timeout -1 }
+        timeout { puts \"No connection received\"; exit 1 }
     }
     $(for cmd in "$@"; do
-        echo "expect -re \"\[#\$\] \""
-        echo "send \"$cmd\r\""
+        echo "expect -i \$sid -re \"\[#\$\] \""
+        echo "send -i \$sid \"$cmd\r\""
     done)
     interact
     "
+
+expect -c "$expect_script"
 
 expect -c "$expect_script"
 
