@@ -38,7 +38,7 @@ handle_target() {
 
         for cmd in "${CMDS[@]}"; do
             # Escape any backslashes and double quotes for expect's send
-            escaped_cmd=$(printf '%s' "$cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+            escaped_cmd=$(printf '%s' "$cmd" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g')
             echo "expect -re {[#\$] }"
             echo "send \"${escaped_cmd}\r\""
         done
