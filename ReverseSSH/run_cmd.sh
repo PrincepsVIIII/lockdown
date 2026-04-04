@@ -31,6 +31,7 @@ $(for cmd in "$@"; do
     echo "send \"$cmd\r\""
 done)
 expect -re "\[#\$\] "
+interact
 EOF
 
 done
