@@ -34,10 +34,10 @@ handle_target() {
 
     local CMD_STR=""
     for cmd in "${CMDS[@]}"; do
-        CMD_STR+="echo '>>> ${cmd}'; ${cmd}; "
+        CMD_STR+="echo '=== ${cmd} ==='; ${cmd}; "
     done
 
-    tmux new-window -n "$TARGET" "echo '${CMD_STR}' | nc -lvnp $PORT; read -p 'Done. Press enter to close.'"
+    tmux new-window -n "$TARGET" "printf '%s\n' '${CMD_STR}' | nc -lvnp $PORT; read -p 'Done. Press enter to close.'"
 }
 
 job_count=0
