@@ -1,4 +1,5 @@
 #!/bin/bash
+trap 'echo "Interrupted"; exit 1' INT
 
 BASE_PORT=1000
 TIMEOUT=6
