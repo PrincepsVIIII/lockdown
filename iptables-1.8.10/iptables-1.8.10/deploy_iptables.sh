@@ -37,17 +37,13 @@ for TARGET in "${TARGETS[@]}"; do
                 ;; \
         esac \
         && sudo update-alternatives --install /usr/sbin/iptables iptables \$IPT 60 \
-        && sudo update-alternatives --install /usr/sbin/iptables-save iptables-save \$IPTS 60 \
-        && sudo update-alternatives --install /usr/sbin/iptables-restore iptables-restore \$IPTR 60 \
+            --slave /usr/sbin/iptables-save iptables-save \$IPTS \
+            --slave /usr/sbin/iptables-restore iptables-restore \$IPTR \
         && sudo update-alternatives --install /usr/sbin/ip6tables ip6tables \$IP6T 60 \
-        && sudo update-alternatives --install /usr/sbin/ip6tables-save ip6tables-save \$IP6TS 60 \
-        && sudo update-alternatives --install /usr/sbin/ip6tables-restore ip6tables-restore \$IP6TR 60 \
+            --slave /usr/sbin/ip6tables-save ip6tables-save \$IP6TS \
+            --slave /usr/sbin/ip6tables-restore ip6tables-restore \$IP6TR \
         && sudo update-alternatives --set iptables \$IPT \
-        && sudo update-alternatives --set iptables-save \$IPTS \
-        && sudo update-alternatives --set iptables-restore \$IPTR \
         && sudo update-alternatives --set ip6tables \$IP6T \
-        && sudo update-alternatives --set ip6tables-save \$IP6TS \
-        && sudo update-alternatives --set ip6tables-restore \$IP6TR \
         && hash -r \
         && test -f /usr/local/lib/xtables/libip6t_hl.so \
         && readlink -f /usr/sbin/iptables \

@@ -3,9 +3,24 @@ import sys
 import random
 
 def create_popup(root, message):
+
     popup = tk.Toplevel(root)
     popup.title("Red Team says hi!")
     popup.attributes("-topmost", True)
+
+    popup.overrideredirect(True)
+    def start_move(event):
+        popup._x = event.x
+        popup._y = event.y
+
+    def do_move(event):
+        x = event.x_root - popup._x
+        y = event.y_root - popup._y
+        popup.geometry(f"+{x}+{y}")
+        
+
+    popup.bind("<Button-1>", start_move)
+    popup.bind("<B1-Motion>", do_move)
 
     # Disable close button
     popup.protocol("WM_DELETE_WINDOW", lambda: None)
@@ -33,7 +48,7 @@ def create_popup(root, message):
 
 def show_popups(message):
     root = tk.Tk()
-    root.attributes("-toolwindow", True)
+    root.attributes("-topmost", True)
     root.withdraw()  # hide main window
 
     # Random number of popups (1–5)
