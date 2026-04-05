@@ -2,6 +2,10 @@ import tkinter as tk
 import sys
 import random
 
+def duplicate_popup(root, message):
+    create_popup(root, message)
+    create_popup(root, message)
+
 def create_popup(root, message):
 
     popup = tk.Toplevel(root)
@@ -42,7 +46,7 @@ def create_popup(root, message):
     label = tk.Label(popup, text=message, font=("Helvetica", 16), wraplength=360)
     label.pack(pady=20)
 
-    close_button = tk.Button(popup, text="Close")
+    close_button = tk.Button(popup, text="Close", command=lambda: duplicate_popup(root, message))
     close_button.pack(pady=10)
 
 
