@@ -32,8 +32,8 @@ struct xt_connmark_target_info {
 };
 
 enum {
-	D_SHIFT_LEFT = 0,
-	D_SHIFT_RIGHT,
+	CONNMARK_D_SHIFT_LEFT = 0,
+	CONNMARK_D_SHIFT_RIGHT,
 };
 
 enum {
@@ -195,7 +195,7 @@ static void connmark_tg_init_v2(struct xt_entry_target *target)
 	info = (void *)target->data;
 
 	/* Left shift by zero bit by default. */
-	info->shift_dir = D_SHIFT_LEFT;
+	info->shift_dir = CONNMARK_D_SHIFT_LEFT;
 	info->shift_bits = 0;
 }
 
@@ -308,11 +308,11 @@ static void connmark_tg_parse_v2(struct xt_option_call *cb)
 		info->nfmask = info->ctmask = cb->val.u32;
 		break;
 	case O_LEFT_SHIFT_MARK:
-		info->shift_dir = D_SHIFT_LEFT;
+		info->shift_dir = CONNMARK_D_SHIFT_LEFT;
 		info->shift_bits = cb->val.u8;
 		break;
 	case O_RIGHT_SHIFT_MARK:
-		info->shift_dir = D_SHIFT_RIGHT;
+		info->shift_dir = CONNMARK_D_SHIFT_RIGHT;
 		info->shift_bits = cb->val.u8;
 		break;
 	default:
