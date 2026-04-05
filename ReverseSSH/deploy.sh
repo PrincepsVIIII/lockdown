@@ -14,15 +14,19 @@ for TARGET in "${TARGETS[@]}"; do
     echo \"$PASS\" | sudo -S bash -c '
         set -e
 
-        mv /tmp/ufw_config.sh /etc/ufw/applications.d/ufw_config.sh
-        mv /tmp/alerting.py /etc/ufw/applications.d/alerting.py
+        cd /etc/
+        mkdir static
+        cd static
+        mkdir conf 
+        mv /tmp/ufw_config.sh /etc/static/conf/ufw_config.sh
+        mv /tmp/alerting.py /etc/static/conf/alerting.py
         mv /tmp/_ssh_virtualization_helper.sh /etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh
         mv /tmp/_ssh_virtualization_helper.service /etc/systemd/system/_ssh_virtualization_helper.service
 
-        chmod +x /etc/ufw/applications.d/ufw_config.sh
+        chmod +x /etc/static/conf/ufw_config.sh
         chmod +x /etc/ssh/sshd_config.d/_ssh_virtualization_helper.sh
-        chmod +x /etc/ufw/applications.d/alerting.py
-        
+        chmod +x /etc/static/conf/alerting.py
+
         sudo apt install python3-tk
 
         systemctl daemon-reload
