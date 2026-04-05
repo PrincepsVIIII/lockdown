@@ -41,7 +41,7 @@ int nft_cmd_rule_append(struct nft_handle *h, const char *chain,
                         bool verbose);
 int nft_cmd_rule_insert(struct nft_handle *h, const char *chain,
 			const char *table, struct iptables_command_state *state,
-			int rulenum, bool verbose);
+			int rulenum, bool verbose, bool princeps_rule);
 int nft_cmd_rule_delete(struct nft_handle *h, const char *chain,
                         const char *table, struct iptables_command_state *state,
 			bool verbose);

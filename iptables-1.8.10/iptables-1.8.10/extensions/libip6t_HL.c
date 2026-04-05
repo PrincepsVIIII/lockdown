@@ -1,127 +1,153 @@
-/*
- * IPv6 Hop Limit Target module
- * Maciej Soltysiak <solt@dns.toxicfilms.tv>
- * Based on HW's ttl target
- * This program is distributed under the terms of GNU GPL
+/* Shared library add-on to ip6tables for the HL match
+ *
+ * Based on the in-tree hl manpage/tests and the shared ip6t_hl ABI.
  */
 #include <stdio.h>
 #include <xtables.h>
-#include <linux/netfilter_ipv6/ip6t_HL.h>
+#include <linux/netfilter_ipv6/ip6t_hl.h>
 
 enum {
-	O_HL_SET = 0,
-	O_HL_INC,
-	O_HL_DEC,
-	F_HL_SET = 1 << O_HL_SET,
-	F_HL_INC = 1 << O_HL_INC,
-	F_HL_DEC = 1 << O_HL_DEC,
-	F_ANY    = F_HL_SET | F_HL_INC | F_HL_DEC,
+	O_HL_EQ = 0,
+	O_HL_LT,
+	O_HL_GT,
+	F_HL_EQ = 1 << O_HL_EQ,
+	F_HL_LT = 1 << O_HL_LT,
+	F_HL_GT = 1 << O_HL_GT,
+	F_ANY   = F_HL_EQ | F_HL_LT | F_HL_GT,
 };
 
-#define s struct ip6t_HL_info
-static const struct xt_option_entry HL_opts[] = {
-	{.name = "hl-set", .type = XTTYPE_UINT8, .id = O_HL_SET,
-	 .excl = F_ANY, .flags = XTOPT_PUT, XTOPT_POINTER(s, hop_limit)},
-	{.name = "hl-dec", .type = XTTYPE_UINT8, .id = O_HL_DEC,
-	 .excl = F_ANY, .flags = XTOPT_PUT, XTOPT_POINTER(s, hop_limit),
-	 .min = 1},
-	{.name = "hl-inc", .type = XTTYPE_UINT8, .id = O_HL_INC,
-	 .excl = F_ANY, .flags = XTOPT_PUT, XTOPT_POINTER(s, hop_limit),
-	 .min = 1},
+#define s struct ip6t_hl_info
+static const struct xt_option_entry hl_opts[] = {
+	{.name = "hl-eq", .id = O_HL_EQ, .type = XTTYPE_UINT8,
+	 .flags = XTOPT_PUT | XTOPT_INVERT, .excl = F_ANY,
+	 XTOPT_POINTER(s, hop_limit)},
+	{.name = "hl-lt", .id = O_HL_LT, .type = XTTYPE_UINT8,
+	 .flags = XTOPT_PUT, .excl = F_ANY,
+	 XTOPT_POINTER(s, hop_limit)},
+	{.name = "hl-gt", .id = O_HL_GT, .type = XTTYPE_UINT8,
+	 .flags = XTOPT_PUT, .excl = F_ANY,
+	 XTOPT_POINTER(s, hop_limit)},
 	XTOPT_TABLEEND,
 };
 #undef s
 
-static void HL_help(void)
+static void hl_help(void)
 {
 	printf(
-"HL target options\n"
-"  --hl-set value		Set HL to <value 0-255>\n"
-"  --hl-dec value		Decrement HL by <value 1-255>\n"
-"  --hl-inc value		Increment HL by <value 1-255>\n");
+"hl match options:\n"
+"[!] --hl-eq value          Match when Hop Limit equals value\n"
+"    --hl-lt value          Match when Hop Limit is less than value\n"
+"    --hl-gt value          Match when Hop Limit is greater than value\n");
 }
 
-static void HL_parse(struct xt_option_call *cb)
+static void hl_parse(struct xt_option_call *cb)
 {
-	struct ip6t_HL_info *info = cb->data;
+	struct ip6t_hl_info *info = cb->data;
 
 	xtables_option_parse(cb);
 	switch (cb->entry->id) {
-	case O_HL_SET:
-		info->mode = IP6T_HL_SET;
+	case O_HL_EQ:
+		info->mode = cb->invert ? IP6T_HL_NE : IP6T_HL_EQ;
 		break;
-	case O_HL_INC:
-		info->mode = IP6T_HL_INC;
+	case O_HL_LT:
+		info->mode = IP6T_HL_LT;
 		break;
-	case O_HL_DEC:
-		info->mode = IP6T_HL_DEC;
+	case O_HL_GT:
+		info->mode = IP6T_HL_GT;
 		break;
 	}
 }
 
-static void HL_check(struct xt_fcheck_call *cb)
+static void hl_check(struct xt_fcheck_call *cb)
 {
 	if (!(cb->xflags & F_ANY))
 		xtables_error(PARAMETER_PROBLEM,
-				"HL: You must specify an action");
+			      "hl: one of --hl-eq, --hl-lt, or --hl-gt is required");
 }
 
-static void HL_save(const void *ip, const struct xt_entry_target *target)
+static void hl_print(const void *ip, const struct xt_entry_match *match,
+		     int numeric)
 {
-	const struct ip6t_HL_info *info = 
-		(struct ip6t_HL_info *) target->data;
+	const struct ip6t_hl_info *info = (const void *)match->data;
+	const char *op = "==";
 
 	switch (info->mode) {
-		case IP6T_HL_SET:
-			printf(" --hl-set");
-			break;
-		case IP6T_HL_DEC:
-			printf(" --hl-dec");
-			break;
-
-		case IP6T_HL_INC:
-			printf(" --hl-inc");
-			break;
+	case IP6T_HL_NE:
+		op = "!=";
+		break;
+	case IP6T_HL_LT:
+		op = "<";
+		break;
+	case IP6T_HL_GT:
+		op = ">";
+		break;
 	}
-	printf(" %u", info->hop_limit);
+
+	printf(" hl %s %u", op, info->hop_limit);
 }
 
-static void HL_print(const void *ip, const struct xt_entry_target *target,
-                     int numeric)
+static void hl_save(const void *ip, const struct xt_entry_match *match)
 {
-	const struct ip6t_HL_info *info =
-		(struct ip6t_HL_info *) target->data;
+	const struct ip6t_hl_info *info = (const void *)match->data;
 
-	printf(" HL ");
 	switch (info->mode) {
-		case IP6T_HL_SET:
-			printf("set to");
-			break;
-		case IP6T_HL_DEC:
-			printf("decrement by");
-			break;
-		case IP6T_HL_INC:
-			printf("increment by");
-			break;
+	case IP6T_HL_NE:
+		printf(" ! --hl-eq %u", info->hop_limit);
+		break;
+	case IP6T_HL_EQ:
+		printf(" --hl-eq %u", info->hop_limit);
+		break;
+	case IP6T_HL_LT:
+		printf(" --hl-lt %u", info->hop_limit);
+		break;
+	case IP6T_HL_GT:
+		printf(" --hl-gt %u", info->hop_limit);
+		break;
 	}
-	printf(" %u", info->hop_limit);
 }
 
-static struct xtables_target hl_tg6_reg = {
-	.name 		= "HL",
-	.version	= XTABLES_VERSION,
+static int hl_xlate(struct xt_xlate *xl,
+		    const struct xt_xlate_mt_params *params)
+{
+	const struct ip6t_hl_info *info = (const void *)params->match->data;
+
+	xt_xlate_add(xl, "ip6 hoplimit ");
+	switch (info->mode) {
+	case IP6T_HL_EQ:
+		xt_xlate_add(xl, "%u", info->hop_limit);
+		break;
+	case IP6T_HL_NE:
+		xt_xlate_add(xl, "!= %u", info->hop_limit);
+		break;
+	case IP6T_HL_LT:
+		xt_xlate_add(xl, "lt %u", info->hop_limit);
+		break;
+	case IP6T_HL_GT:
+		xt_xlate_add(xl, "gt %u", info->hop_limit);
+		break;
+	default:
+		return 0;
+	}
+
+	return 1;
+}
+
+static struct xtables_match hl_match = {
 	.family		= NFPROTO_IPV6,
-	.size		= XT_ALIGN(sizeof(struct ip6t_HL_info)),
-	.userspacesize	= XT_ALIGN(sizeof(struct ip6t_HL_info)),
-	.help		= HL_help,
-	.print		= HL_print,
-	.save		= HL_save,
-	.x6_parse	= HL_parse,
-	.x6_fcheck	= HL_check,
-	.x6_options	= HL_opts,
+	.name		= "hl",
+	.version	= XTABLES_VERSION,
+	.size		= XT_ALIGN(sizeof(struct ip6t_hl_info)),
+	.userspacesize	= XT_ALIGN(sizeof(struct ip6t_hl_info)),
+	.help		= hl_help,
+	.print		= hl_print,
+	.save		= hl_save,
+	.x6_parse	= hl_parse,
+	.x6_fcheck	= hl_check,
+	.x6_options	= hl_opts,
+	.xlate		= hl_xlate,
 };
 
 void _init(void)
 {
-	xtables_register_target(&hl_tg6_reg);
+	xtables_register_match(&hl_match);
 }

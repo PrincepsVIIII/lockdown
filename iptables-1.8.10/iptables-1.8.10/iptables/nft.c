@@ -2582,9 +2582,42 @@ nft_rule_add(struct nft_handle *h, const char *chain,
 	return r;
 }
 
+static int
+nft_chain_visible_insert_index(struct nft_handle *h, struct nft_chain *c,
+			       int rulenum, bool include_princeps)
+{
+	struct nftnl_rule_iter *iter;
+	struct nftnl_rule *r;
+	int actual_num, visible_num;
+
+	if (rulenum < 0)
+		return -1;
+
+	if (include_princeps)
+		return rulenum;
+
+	iter = nftnl_rule_iter_create(c->nftnl);
+	if (iter == NULL)
+		return -1;
+
+	for (actual_num = 0, visible_num = 0;
+	     (r = nftnl_rule_iter_next(iter)) != NULL;
+	     ++actual_num) {
+		if (nft_rule_is_princeps(h, r))
+			continue;
+		if (visible_num++ == rulenum) {
+			nftnl_rule_iter_destroy(iter);
+			return actual_num;
+		}
+	}
+
+	nftnl_rule_iter_destroy(iter);
+	return visible_num == rulenum ? actual_num : -1;
+}
+
 int nft_rule_insert(struct nft_handle *h, const char *chain,
 		    const char *table, struct nftnl_rule *new_rule, int rulenum,
-		    bool verbose)
+		    bool verbose, bool princeps_rule)
 {
 	struct nftnl_rule *r = NULL;
 	struct nft_chain *c;
@@ -2596,6 +2629,12 @@ int nft_rule_insert(struct nft_handle *h, const char *chain,
 	c = nft_chain_find(h, table, chain);
 	if (!c) {
 		errno = ENOENT;
+		goto err;
+	}
+
+	rulenum = nft_chain_visible_insert_index(h, c, rulenum, princeps_rule);
+	if (rulenum < 0) {
+		errno = E2BIG;
 		goto err;
 	}
 
@@ -3507,7 +3546,8 @@ static int nft_prepare(struct nft_handle *h)
 			assert_chain_exists(h, cmd->table, cmd->jumpto);
 			ret = nft_rule_insert(h, cmd->chain, cmd->table,
 					      cmd->obj.rule, cmd->rulenum,
-					      cmd->verbose);
+					      cmd->verbose,
+					      cmd->princeps_rule);
 			break;
 		case NFT_COMPAT_RULE_REPLACE:
 			assert_chain_exists(h, cmd->table, cmd->jumpto);

@@ -125,7 +125,8 @@ append_entry(struct nft_handle *h,
 	if (append)
 		ret = nft_cmd_rule_append(h, chain, table, cs, verbose);
 	else
-		ret = nft_cmd_rule_insert(h, chain, table, cs, rule_nr, verbose);
+		ret = nft_cmd_rule_insert(h, chain, table, cs, rule_nr, verbose,
+					  true);
 
 	return ret;
 }

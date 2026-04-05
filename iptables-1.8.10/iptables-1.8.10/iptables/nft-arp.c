@@ -579,7 +579,8 @@ nft_arp_add_entry(struct nft_handle *h,
 						          verbose);
 			} else {
 				ret = nft_cmd_rule_insert(h, chain, table, cs,
-						          rulenum, verbose);
+						          rulenum, verbose,
+						          cs->princeps_rule);
 			}
 		}
 	}

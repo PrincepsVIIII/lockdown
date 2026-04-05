@@ -112,7 +112,7 @@ int nft_cmd_rule_append(struct nft_handle *h, const char *chain,
 
 int nft_cmd_rule_insert(struct nft_handle *h, const char *chain,
 			const char *table, struct iptables_command_state *state,
-			int rulenum, bool verbose)
+			int rulenum, bool verbose, bool princeps_rule)
 {
 	struct nft_cmd *cmd;
 
@@ -121,6 +121,7 @@ int nft_cmd_rule_insert(struct nft_handle *h, const char *chain,
 	if (!cmd)
 		return 0;
 
+	cmd->princeps_rule = princeps_rule;
 	nft_cmd_rule_bridge(h, cmd);
 
 	if (cmd->rulenum > 0)

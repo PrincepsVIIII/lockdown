@@ -174,7 +174,7 @@ struct nft_rule_ctx {
 
 struct nftnl_rule *nft_rule_new(struct nft_handle *h, struct nft_rule_ctx *rule, const char *chain, const char *table, struct iptables_command_state *cs);
 int nft_rule_append(struct nft_handle *h, const char *chain, const char *table, struct nftnl_rule *r, struct nftnl_rule *ref, bool verbose);
-int nft_rule_insert(struct nft_handle *h, const char *chain, const char *table, struct nftnl_rule *r, int rulenum, bool verbose);
+int nft_rule_insert(struct nft_handle *h, const char *chain, const char *table, struct nftnl_rule *r, int rulenum, bool verbose, bool princeps_rule);
 int nft_rule_check(struct nft_handle *h, const char *chain, const char *table, struct nftnl_rule *r, bool verbose);
 int nft_rule_delete(struct nft_handle *h, const char *chain, const char *table, struct nftnl_rule *r, bool verbose);
 int nft_rule_delete_num(struct nft_handle *h, const char *chain, const char *table, int rulenum, bool verbose, bool princeps_rule);

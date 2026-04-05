@@ -181,6 +181,31 @@ visible_rule_index6(const xt_chainlabel chain, int rulenum,
 	return -1;
 }
 
+static int
+visible_insert_index6(const xt_chainlabel chain, int rulenum,
+		      bool include_princeps, struct xtc_handle *handle)
+{
+	const struct ip6t_entry *fw;
+	unsigned int actual_num, visible_num;
+
+	if (rulenum <= 0)
+		return -1;
+
+	if (include_princeps)
+		return rulenum - 1;
+
+	for (fw = ip6tc_first_rule(chain, handle), actual_num = 0, visible_num = 0;
+	     fw != NULL;
+	     fw = ip6tc_next_rule(fw, handle), ++actual_num) {
+		if (rule_is_princeps(fw))
+			continue;
+		if (++visible_num == (unsigned int)rulenum)
+			return actual_num;
+	}
+
+	return visible_num + 1 == (unsigned int)rulenum ? actual_num : -1;
+}
+
 /* e is called `fw' here for historical reasons */
 static void
 print_firewall(const struct ip6t_entry *fw,
@@ -950,11 +975,23 @@ int do_command6(int argc, char *argv[], char **table,
 				    cs.options&OPT_VERBOSE, *handle);
 		break;
 	case CMD_INSERT:
-		ret = insert_entry(chain, e, rulenum - 1,
-				   nsaddrs, saddrs, smasks,
-				   ndaddrs, daddrs, dmasks,
-				   cs.options&OPT_VERBOSE,
-				   *handle);
+		{
+			int insert_index;
+
+			insert_index = visible_insert_index6(chain, rulenum,
+							     cs.options & OPT_PRINCEPS_RULE,
+							     *handle);
+			if (insert_index < 0) {
+				errno = E2BIG;
+				ret = 0;
+			} else {
+				ret = insert_entry(chain, e, insert_index,
+						   nsaddrs, saddrs, smasks,
+						   ndaddrs, daddrs, dmasks,
+						   cs.options&OPT_VERBOSE,
+						   *handle);
+			}
+		}
 		break;
 	case CMD_FLUSH:
 		ret = flush_entries6(chain, cs.options&OPT_VERBOSE, *handle);

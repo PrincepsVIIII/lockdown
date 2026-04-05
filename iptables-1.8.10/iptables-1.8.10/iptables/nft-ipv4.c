@@ -274,7 +274,8 @@ nft_ipv4_add_entry(struct nft_handle *h,
 						      cs, verbose);
 			} else {
 				ret = nft_cmd_rule_insert(h, chain, table,
-						      cs, rulenum, verbose);
+						      cs, rulenum, verbose,
+						      cs->princeps_rule);
 			}
 		}
 	}
