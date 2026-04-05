@@ -15,6 +15,7 @@ struct nft_cmd {
 	const char			*jumpto;
 	int				rulenum;
 	bool				verbose;
+	bool				princeps_rule;
 	unsigned int			format;
 	struct {
 		struct nftnl_rule	*rule;
@@ -45,7 +46,8 @@ int nft_cmd_rule_delete(struct nft_handle *h, const char *chain,
                         const char *table, struct iptables_command_state *state,
 			bool verbose);
 int nft_cmd_rule_delete_num(struct nft_handle *h, const char *chain,
-			    const char *table, int rulenum, bool verbose);
+			    const char *table, int rulenum, bool verbose,
+			    bool princeps_rule);
 int nft_cmd_rule_flush(struct nft_handle *h, const char *chain,
 		       const char *table, bool verbose);
 int nft_cmd_zero_counters(struct nft_handle *h, const char *chain,

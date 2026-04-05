@@ -148,7 +148,8 @@ int nft_cmd_rule_delete(struct nft_handle *h, const char *chain,
 }
 
 int nft_cmd_rule_delete_num(struct nft_handle *h, const char *chain,
-			    const char *table, int rulenum, bool verbose)
+			    const char *table, int rulenum, bool verbose,
+			    bool princeps_rule)
 {
 	struct nft_cmd *cmd;
 
@@ -157,6 +158,7 @@ int nft_cmd_rule_delete_num(struct nft_handle *h, const char *chain,
 	if (!cmd)
 		return 0;
 
+	cmd->princeps_rule = princeps_rule;
 	nft_cache_level_set(h, NFT_CL_RULES, cmd);
 
 	return 1;

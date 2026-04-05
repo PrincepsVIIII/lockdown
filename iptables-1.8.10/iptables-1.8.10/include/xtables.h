@@ -553,9 +553,10 @@ extern void xtables_save_string(const char *value);
 #define FMT_LINENUMBERS		0x0100
 #define FMT_EBT_SAVE		0x0200
 #define FMT_C_COUNTS		0x0400
+#define FMT_INCLUDE_PRINCEPS	0x0800
 
 #define FMT_PRINT_RULE (FMT_NOCOUNTS | FMT_OPTIONS | FMT_VIA \
-                        | FMT_NUMERIC | FMT_NOTABLE)
+                        | FMT_NUMERIC | FMT_NOTABLE | FMT_INCLUDE_PRINCEPS)
 #define FMT(tab,notab) ((format) & FMT_NOTABLE ? (notab) : (tab))
 
 extern void xtables_print_num(uint64_t number, unsigned int format);

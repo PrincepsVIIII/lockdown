@@ -107,7 +107,7 @@ struct xtables_globals xtables_globals = {
 static int
 list_entries(struct nft_handle *h, const char *chain, const char *table,
 	     int rulenum, int verbose, int numeric, int expanded,
-	     int linenumbers)
+	     int linenumbers, int include_princeps)
 {
 	unsigned int format;
 
@@ -125,6 +125,9 @@ list_entries(struct nft_handle *h, const char *chain, const char *table,
 
 	if (linenumbers)
 		format |= FMT_LINENUMBERS;
+
+	if (include_princeps)
+		format |= FMT_INCLUDE_PRINCEPS;
 
 	return nft_cmd_rule_list(h, chain, table, rulenum, format);
 }
@@ -179,7 +182,8 @@ int do_commandx(struct nft_handle *h, int argc, char *argv[], char **table,
 		break;
 	case CMD_DELETE_NUM:
 		ret = nft_cmd_rule_delete_num(h, p.chain, p.table,
-					      p.rulenum - 1, p.verbose);
+					      p.rulenum - 1, p.verbose,
+					      cs.options & OPT_PRINCEPS_RULE);
 		break;
 	case CMD_CHECK:
 		ret = h->ops->check_entry(h, p.chain, p.table, &cs, &args,
@@ -214,7 +218,8 @@ int do_commandx(struct nft_handle *h, int argc, char *argv[], char **table,
 				   cs.options & OPT_VERBOSE,
 				   cs.options & OPT_NUMERIC,
 				   cs.options & OPT_EXPANDED,
-				   cs.options & OPT_LINENUMBERS);
+				   cs.options & OPT_LINENUMBERS,
+				   cs.options & OPT_PRINCEPS_RULE);
 		if (ret && (p.command & CMD_ZERO)) {
 			ret = nft_cmd_chain_zero_counters(h, p.chain, p.table,
 						      cs.options & OPT_VERBOSE);

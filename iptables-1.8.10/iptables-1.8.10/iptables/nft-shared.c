@@ -327,7 +327,7 @@ void print_matches_and_target(struct iptables_command_state *cs,
 {
 	struct xtables_rule_match *matchp;
 
-	if (cs->princeps_rule)
+	if ((format & FMT_INCLUDE_PRINCEPS) && cs->princeps_rule)
 		printf("[special] ");
 
 	for (matchp = cs->matches; matchp; matchp = matchp->next) {

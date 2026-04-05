@@ -146,7 +146,7 @@ delete_entry(struct nft_handle *h,
 	else {
 		do {
 			ret = nft_cmd_rule_delete_num(h, chain, table,
-						  rule_nr, verbose);
+						  rule_nr, verbose, true);
 			rule_nr++;
 		} while (rule_nr < rule_nr_end);
 	}

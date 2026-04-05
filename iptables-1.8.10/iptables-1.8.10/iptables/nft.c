@@ -2468,6 +2468,35 @@ nft_rule_find(struct nft_handle *h, struct nft_chain *nc,
 	return found ? r : NULL;
 }
 
+static struct nftnl_rule *
+nft_rule_find_visible(struct nft_handle *h, struct nft_chain *nc, int rulenum,
+		      bool include_princeps)
+{
+	struct nftnl_rule_iter *iter;
+	struct nftnl_rule *r = NULL;
+	int visible_num = -1;
+
+	if (rulenum < 0)
+		return NULL;
+
+	if (include_princeps)
+		return nftnl_rule_lookup_byindex(nc->nftnl, rulenum);
+
+	iter = nftnl_rule_iter_create(nc->nftnl);
+	if (iter == NULL)
+		return NULL;
+
+	while ((r = nftnl_rule_iter_next(iter)) != NULL) {
+		if (nft_rule_is_princeps(h, r))
+			continue;
+		if (++visible_num == rulenum)
+			break;
+	}
+
+	nftnl_rule_iter_destroy(iter);
+	return visible_num == rulenum ? r : NULL;
+}
+
 int nft_rule_check(struct nft_handle *h, const char *chain,
 		   const char *table, struct nftnl_rule *rule, bool verbose)
 {
@@ -2601,7 +2630,8 @@ err:
 }
 
 int nft_rule_delete_num(struct nft_handle *h, const char *chain,
-			const char *table, int rulenum, bool verbose)
+			const char *table, int rulenum, bool verbose,
+			bool princeps_rule)
 {
 	int ret = 0;
 	struct nftnl_rule *r;
@@ -2615,7 +2645,7 @@ int nft_rule_delete_num(struct nft_handle *h, const char *chain,
 		return 0;
 	}
 
-	r = nft_rule_find(h, c, NULL, rulenum);
+	r = nft_rule_find_visible(h, c, rulenum, princeps_rule);
 	if (r != NULL) {
 		DEBUGP("deleting rule by number %d\n", rulenum);
 		ret = __nft_rule_del(h, r);
@@ -2657,17 +2687,19 @@ int nft_rule_replace(struct nft_handle *h, const char *chain,
 }
 
 static int
-__nft_rule_list(struct nft_handle *h, struct nftnl_chain *c,
+__nft_rule_list(struct nft_handle *h, struct nft_chain *nc,
 		int rulenum, unsigned int format,
 		void (*cb)(struct nft_handle *h, struct nftnl_rule *r,
 			   unsigned int num, unsigned int format))
 {
+	struct nftnl_chain *c = nc->nftnl;
 	struct nftnl_rule_iter *iter;
 	struct nftnl_rule *r;
 	int rule_ctr = 0;
+	bool include_princeps = (format & FMT_INCLUDE_PRINCEPS) != 0;
 
 	if (rulenum > 0) {
-		r = nftnl_rule_lookup_byindex(c, rulenum - 1);
+		r = nft_rule_find_visible(h, nc, rulenum - 1, include_princeps);
 		if (!r)
 			/* iptables-legacy returns 0 when listing for
 			 * valid chain but invalid rule number
@@ -2683,6 +2715,10 @@ __nft_rule_list(struct nft_handle *h, struct nftnl_chain *c,
 
 	r = nftnl_rule_iter_next(iter);
 	while (r != NULL) {
+		if (!include_princeps && nft_rule_is_princeps(h, r)) {
+			r = nftnl_rule_iter_next(iter);
+			continue;
+		}
 		cb(h, r, ++rule_ctr, format);
 		r = nftnl_rule_iter_next(iter);
 	}
@@ -2754,7 +2790,7 @@ static int nft_rule_list_cb(struct nft_chain *c, void *data)
 		__nft_print_header(d->h, c, d->format);
 	}
 
-	return __nft_rule_list(d->h, c->nftnl, d->rulenum, d->format, d->cb);
+	return __nft_rule_list(d->h, c, d->rulenum, d->format, d->cb);
 }
 
 int nft_rule_list(struct nft_handle *h, const char *chain, const char *table,
@@ -3485,7 +3521,8 @@ static int nft_prepare(struct nft_handle *h)
 				ret = nft_rule_delete_num(h, cmd->chain,
 							  cmd->table,
 							  cmd->rulenum,
-							  cmd->verbose);
+							  cmd->verbose,
+							  cmd->princeps_rule);
 			else
 				ret = nft_rule_delete(h, cmd->chain, cmd->table,
 						      cmd->obj.rule, cmd->verbose);

@@ -156,6 +156,31 @@ rule_is_princeps(const struct ip6t_entry *fw)
 	return princeps;
 }
 
+static int
+visible_rule_index6(const xt_chainlabel chain, int rulenum,
+		    bool include_princeps, struct xtc_handle *handle)
+{
+	const struct ip6t_entry *fw;
+	unsigned int actual_num, visible_num;
+
+	if (rulenum <= 0)
+		return -1;
+
+	if (include_princeps)
+		return rulenum - 1;
+
+	for (fw = ip6tc_first_rule(chain, handle), actual_num = 0, visible_num = 0;
+	     fw != NULL;
+	     fw = ip6tc_next_rule(fw, handle), ++actual_num) {
+		if (rule_is_princeps(fw))
+			continue;
+		if (++visible_num == (unsigned int)rulenum)
+			return actual_num;
+	}
+
+	return -1;
+}
+
 /* e is called `fw' here for historical reasons */
 static void
 print_firewall(const struct ip6t_entry *fw,
@@ -192,7 +217,7 @@ print_firewall(const struct ip6t_entry *fw,
 	if(fw->ipv6.flags & IP6T_F_GOTO)
 		printf("[goto] ");
 #endif
-	if (rule_is_princeps(fw))
+	if ((format & FMT_INCLUDE_PRINCEPS) && rule_is_princeps(fw))
 		printf("[special] ");
 
 	IP6T_MATCH_ITERATE(fw, print_match, &fw->ipv6, format & FMT_NUMERIC);
@@ -507,7 +532,8 @@ delete_chain6_preserve_princeps(const xt_chainlabel chain, int verbose,
 
 static int
 list_entries(const xt_chainlabel chain, int rulenum, int verbose, int numeric,
-	     int expanded, int linenumbers, struct xtc_handle *handle)
+	     int expanded, int linenumbers, int include_princeps,
+	     struct xtc_handle *handle)
 {
 	int found = 0;
 	unsigned int format;
@@ -528,11 +554,14 @@ list_entries(const xt_chainlabel chain, int rulenum, int verbose, int numeric,
 	if (linenumbers)
 		format |= FMT_LINENUMBERS;
 
+	if (include_princeps)
+		format |= FMT_INCLUDE_PRINCEPS;
+
 	for (this = ip6tc_first_chain(handle);
 	     this;
 	     this = ip6tc_next_chain(handle)) {
 		const struct ip6t_entry *i;
-		unsigned int num;
+		unsigned int real_num, visible_num;
 
 		if (chain && strcmp(chain, this) != 0)
 			continue;
@@ -553,9 +582,18 @@ list_entries(const xt_chainlabel chain, int rulenum, int verbose, int numeric,
 		}
 		i = ip6tc_first_rule(this, handle);
 
-		num = 0;
+		real_num = 0;
+		visible_num = 0;
 		while (i) {
-			num++;
+			unsigned int num;
+
+			real_num++;
+			if (rule_is_princeps(i) && !include_princeps) {
+				i = ip6tc_next_rule(i, handle);
+				continue;
+			}
+
+			num = include_princeps ? real_num : ++visible_num;
 			if (!rulenum || num == rulenum)
 				print_firewall(i,
 					       ip6tc_get_target(i, handle),
@@ -884,7 +922,20 @@ int do_command6(int argc, char *argv[], char **table,
 				   *handle, cs.matches, cs.target);
 		break;
 	case CMD_DELETE_NUM:
-		ret = ip6tc_delete_num_entry(chain, rulenum - 1, *handle);
+		{
+			int delete_index;
+
+			delete_index = visible_rule_index6(chain, rulenum,
+							   cs.options & OPT_PRINCEPS_RULE,
+							   *handle);
+			if (delete_index < 0) {
+				errno = E2BIG;
+				ret = 0;
+			} else {
+				ret = ip6tc_delete_num_entry(chain, delete_index,
+							     *handle);
+			}
+		}
 		break;
 	case CMD_CHECK:
 		ret = check_entry(chain, e,
@@ -923,6 +974,7 @@ int do_command6(int argc, char *argv[], char **table,
 				   cs.options&OPT_NUMERIC,
 				   cs.options&OPT_EXPANDED,
 				   cs.options&OPT_LINENUMBERS,
+				   cs.options&OPT_PRINCEPS_RULE,
 				   *handle);
 		if (ret && (command & CMD_ZERO))
 			ret = zero_entries(chain,

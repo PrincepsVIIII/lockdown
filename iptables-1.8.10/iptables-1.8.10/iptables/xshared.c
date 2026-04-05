@@ -251,7 +251,18 @@ void xs_init_match(struct xtables_match *match)
 		match->init(match->m);
 }
 
-static bool command_allows_princeps_rule(unsigned int command)
+static bool command_accepts_princeps_rule(unsigned int command)
+{
+	return command & (CMD_APPEND |
+			  CMD_DELETE |
+			  CMD_DELETE_NUM |
+			  CMD_CHECK |
+			  CMD_INSERT |
+			  CMD_REPLACE |
+			  CMD_LIST);
+}
+
+static bool command_uses_princeps_rule_match(unsigned int command)
 {
 	return command == CMD_APPEND ||
 	       command == CMD_DELETE ||
@@ -1331,7 +1342,7 @@ xtables_printhelp(const struct xtables_rule_match *matches)
 "  --goto      -g chain\n"
 "			       jump to chain with no return\n");
 	printf(
-"  --princeps-rule		mark rule as special and preserve it across flushes\n"
+"  --princeps-rule		mark rule as special; show princeps rules in -L\n"
 "  --match	-m match\n"
 "				extended match (may load extension)\n"
 "  --numeric	-n		numeric output of addresses and ports\n"
@@ -1944,11 +1955,11 @@ void do_parse(int argc, char *argv[],
 			   "specify a unique address");
 
 	if ((cs->options & OPT_PRINCEPS_RULE) &&
-	    !command_allows_princeps_rule(p->command))
+	    !command_accepts_princeps_rule(p->command))
 		xtables_error(PARAMETER_PROBLEM,
-			      "--princeps-rule can only be used with append, delete, check, insert, or replace");
+			      "--princeps-rule can only be used with append, delete, check, insert, replace, or list (-L)");
 
-	if (command_allows_princeps_rule(p->command))
+	if (command_uses_princeps_rule_match(p->command))
 		xtables_ensure_princeps_rule(cs);
 
 	generic_opt_check(p->command, cs->options);
