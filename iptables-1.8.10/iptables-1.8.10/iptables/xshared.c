@@ -1342,7 +1342,6 @@ xtables_printhelp(const struct xtables_rule_match *matches)
 "  --goto      -g chain\n"
 "			       jump to chain with no return\n");
 	printf(
-"  --princeps-rule		mark rule as special; show princeps rules in -L\n"
 "  --match	-m match\n"
 "				extended match (may load extension)\n"
 "  --numeric	-n		numeric output of addresses and ports\n"
