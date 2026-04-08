@@ -223,6 +223,8 @@ def client(dest_addrs):
 
             if cmd_response:
                 print(f"\n{BLUE}[*]{RESET} Command Output from {team}{machine}:")
+                if len(dest_addrs) == 1:
+                    print(cmd_response)
                 machine_outputs[dest_addr] = cmd_response
             else:
                 print(f"\n{RED}[WARN]{RESET} No command output received for {team}{machine}")
