@@ -303,7 +303,8 @@ if __name__ == "__main__":
 
     if args.teams is None or args.machines is None:
         parser.error("--teams and --machines are required")
-    
+
+    print(f"{GREEN}")
     print(r"""
 '||\   /||` '\\  //` '||\   ||` |''||''| 
  ||\\.//||    \\//    ||\\  ||     ||    
@@ -312,6 +313,7 @@ if __name__ == "__main__":
 .||     ||.   .||.   .||   \||.   .||.   
                                          
                                          """)
+    print(f"{RESET}")
 
     targets = []
     for team in args.teams:
