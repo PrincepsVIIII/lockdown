@@ -308,7 +308,7 @@ if __name__ == "__main__":
     targets = []
     for team in args.teams:
         for machine in args.machines:
-            targets.append(agent_ips["Team" + team][machine])
+            targets.append(agent_ips["Team" + str(team)][machine])
 
     print("Welcome to EchoC2. Use 'exit' to quit.\n")
     client(targets)
