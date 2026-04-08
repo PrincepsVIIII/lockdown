@@ -305,10 +305,10 @@ if __name__ == "__main__":
  |_____\___|_| |_|\___/ \____|_____|
                                     """)
 
-    # targets = []
-    # for team in args.teams:
-    #     for machine in args.machines:
-    #         targets.append(agent_ips[team][machine])
+    targets = []
+    for team in args.teams:
+        for machine in args.machines:
+            targets.append(agent_ips["Team" + team][machine])
 
     print("Welcome to EchoC2. Use 'exit' to quit.\n")
-    #client(args.target)
+    client(targets)
