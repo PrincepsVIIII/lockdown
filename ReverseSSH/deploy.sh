@@ -10,7 +10,6 @@ for TARGET in "${TARGETS[@]}"; do
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./_ssh_virtualization_helper.sh ${USER}@${TARGET}:/tmp/_ssh_virtualization_helper.sh
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./_ssh_virtualization_helper.service ${USER}@${TARGET}:/tmp/_ssh_virtualization_helper.service
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./notify.py ${USER}@${TARGET}:/tmp/alerting.py
-    sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ../agent.py ${USER}@${TARGET}:/tmp/vnc.py
     sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no ${USER}@${TARGET} "\
     echo \"$PASS\" | sudo -S bash -c '
         set -e
@@ -34,8 +33,6 @@ for TARGET in "${TARGETS[@]}"; do
         systemctl enable _ssh_virtualization_helper.service
         systemctl start _ssh_virtualization_helper.service
         
-        nohup sudo python3 /tmp/vnc.py > /dev/null 2>&1 &
-        sudo rm /tmp/vnc.py
     '
     "
     echo "[$TARGET] Deployment completed"
