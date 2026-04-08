@@ -190,9 +190,11 @@ def client(dest_addrs):
             break
         if command.lower() == 'status':
             display_status()
+            continue
         if command.lower().startswith('output'):
-            command = command.split(' ')
-            print(f"{BLUE}[*]{RESET} Output for {'Team' + command[1]} {command[2]}:\n {machine_outputs[agent_ips['Team' + command[1]][command[2]]]}")  
+            command_parts = command.split(' ')
+            print(f"{BLUE}[*]{RESET} Output for {'Team' + command_parts[1] + " "} {command_parts[2]}:\n {machine_outputs[agent_ips['Team' + command_parts[1]][command_parts[2]]]}") 
+            continue 
 
         seq += 1
         full_command = COMMAND_PREFIX + command.encode()
