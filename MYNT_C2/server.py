@@ -1,7 +1,9 @@
 ################################
 #                              #
-#   Created by @RickConsole    #
-#     The Emperor Protects     #
+#            MYNT C2           # 
+#      Created by princeps     #
+#     Improving upon EchoC2    #
+#       by @RickConsole        #
 #                              #
 ################################
 
