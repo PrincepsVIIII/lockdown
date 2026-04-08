@@ -193,7 +193,7 @@ def client(dest_addrs):
             continue
         if command.lower().startswith('output'):
             command_parts = command.split(' ')
-            print(f"{BLUE}[*]{RESET} Output for {'Team' + command_parts[1] + " "} {command_parts[2]}:\n {machine_outputs[agent_ips['Team' + command_parts[1]][command_parts[2]]]}") 
+            print(f"{BLUE}[*]{RESET} Output for Team{command_parts[1]}-{command_parts[2]}:\n{machine_outputs[agent_ips['Team' + command_parts[1]][command_parts[2]]]}") 
             continue 
 
         seq += 1
