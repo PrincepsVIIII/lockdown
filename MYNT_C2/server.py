@@ -38,21 +38,21 @@ PAYLOAD_SIZE = MAX_PACKET_SIZE - IP_HEADER_SIZE - ICMP_HEADER_SIZE
 FRAGMENT_HEADER_SIZE = 4
 FRAGMENT_SIZE = PAYLOAD_SIZE - FRAGMENT_HEADER_SIZE - len(RESPONSE_PREFIX)
 agent_ips = {
-    'Team1': {'Ubuntu1': '10.1.1.10', 'Ubuntu2': '10.1.1.20', 'DevServer': '10.1.1.30', 'WebApp': '10.1.1.40'},
-    'Team2': {'Ubuntu1': '10.2.1.10', 'Ubuntu2': '10.2.1.20', 'DevServer': '10.2.1.30', 'WebApp': '10.2.1.40'},
-    'Team3': {'Ubuntu1': '10.3.1.10', 'Ubuntu2': '10.3.1.20', 'DevServer': '10.3.1.30', 'WebApp': '10.3.1.40'},
-    'Team4': {'Ubuntu1': '10.4.1.10', 'Ubuntu2': '10.4.1.20', 'DevServer': '10.4.1.30', 'WebApp': '10.4.1.40'},
-    'Team5': {'Ubuntu1': '10.5.1.10', 'Ubuntu2': '10.5.1.20', 'DevServer': '10.5.1.30', 'WebApp': '10.5.1.40'},
-    'Team6': {'Ubuntu1': '10.6.1.10', 'Ubuntu2': '10.6.1.20', 'DevServer': '10.6.1.30', 'WebApp': '10.6.1.40'},
-    'Team7': {'Ubuntu1': '10.7.1.10', 'Ubuntu2': '10.7.1.20', 'DevServer': '10.7.1.30', 'WebApp': '10.7.1.40'},
-    'Team8': {'Ubuntu1': '10.8.1.10', 'Ubuntu2': '10.8.1.20', 'DevServer': '10.8.1.30', 'WebApp': '10.8.1.40'},  
-    'Team9': {'Ubuntu1': '10.9.1.10', 'Ubuntu2': '10.9.1.20', 'DevServer': '10.9.1.30', 'WebApp': '10.9.1.40'},
-    'Team10': {'Ubuntu1': '10.10.1.10', 'Ubuntu2': '10.10.1.20', 'DevServer': '10.10.1.30', 'WebApp': '10.10.1.40'},
-    'Team11': {'Ubuntu1': '10.11.1.10', 'Ubuntu2': '10.11.1.20', 'DevServer': '10.11.1.30', 'WebApp': '10.11.1.40'},
-    'Team12': {'Ubuntu1': '10.12.1.10', 'Ubuntu2': '10.12.1.20', 'DevServer': '10.12.1.30', 'WebApp': '10.12.1.40'},
-    'Team13': {'Ubuntu1': '10.13.1.10', 'Ubuntu2': '10.13.1.20', 'DevServer': '10.13.1.30', 'WebApp': '10.13.1.40'},
-    'Team14': {'Ubuntu1': '10.14.1.10', 'Ubuntu2': '10.14.1.20', 'DevServer': '10.14.1.30', 'WebApp': '10.14.1.40'},
-    'Team15': {'Ubuntu1': '10.15.1.10', 'Ubuntu2': '10.15.1.20', 'DevServer': '10.15.1.30', 'WebApp': '10.15.1.40'},
+    'Team1': {'Ubuntu1': '10.1.1.10', 'Ubuntu2': '10.1.1.40', 'DevServer': '10.1.1.30', 'WebApp': '10.1.1.20'},
+    'Team2': {'Ubuntu1': '10.2.1.10', 'Ubuntu2': '10.2.1.40', 'DevServer': '10.2.1.30', 'WebApp': '10.2.1.20'},
+    'Team3': {'Ubuntu1': '10.3.1.10', 'Ubuntu2': '10.3.1.40', 'DevServer': '10.3.1.30', 'WebApp': '10.3.1.20'},
+    'Team4': {'Ubuntu1': '10.4.1.10', 'Ubuntu2': '10.4.1.40', 'DevServer': '10.4.1.30', 'WebApp': '10.4.1.20'},
+    'Team5': {'Ubuntu1': '10.5.1.10', 'Ubuntu2': '10.5.1.40', 'DevServer': '10.5.1.30', 'WebApp': '10.5.1.20'},
+    'Team6': {'Ubuntu1': '10.6.1.10', 'Ubuntu2': '10.6.1.40', 'DevServer': '10.6.1.30', 'WebApp': '10.6.1.20'},
+    'Team7': {'Ubuntu1': '10.7.1.10', 'Ubuntu2': '10.7.1.40', 'DevServer': '10.7.1.30', 'WebApp': '10.7.1.20'},
+    'Team8': {'Ubuntu1': '10.8.1.10', 'Ubuntu2': '10.8.1.40', 'DevServer': '10.8.1.30', 'WebApp': '10.8.1.20'},  
+    'Team9': {'Ubuntu1': '10.9.1.10', 'Ubuntu2': '10.9.1.40', 'DevServer': '10.9.1.30', 'WebApp': '10.9.1.20'},
+    'Team10': {'Ubuntu1': '10.10.1.10', 'Ubuntu2': '10.10.1.40', 'DevServer': '10.10.1.30', 'WebApp': '10.10.1.20'},
+    'Team11': {'Ubuntu1': '10.11.1.10', 'Ubuntu2': '10.11.1.40', 'DevServer': '10.11.1.30', 'WebApp': '10.11.1.20'},
+    'Team12': {'Ubuntu1': '10.12.1.10', 'Ubuntu2': '10.12.1.40', 'DevServer': '10.12.1.30', 'WebApp': '10.12.1.20'},
+    'Team13': {'Ubuntu1': '10.13.1.10', 'Ubuntu2': '10.13.1.40', 'DevServer': '10.13.1.30', 'WebApp': '10.13.1.20'},
+    'Team14': {'Ubuntu1': '10.14.1.10', 'Ubuntu2': '10.14.1.40', 'DevServer': '10.14.1.30', 'WebApp': '10.14.1.20'},
+    'Team15': {'Ubuntu1': '10.15.1.10', 'Ubuntu2': '10.15.1.40', 'DevServer': '10.15.1.30', 'WebApp': '10.15.1.20'},
 }
 def find_team_machine_by_ip(agent_ips, target_ip):
     for team, machines in agent_ips.items():
@@ -220,22 +220,21 @@ def client(dest_addrs):
                     log(f"Error processing response: {e}")
             
             if ack_response:
-                print(f"\n{BLUE}[*]{RESET} Command Acknowledgement for {team}{machine}:")
-                print(f"Server received: {ack_response}")
+                print(f"\n{BLUE}[*]{RESET} Command Acknowledgement for {team}-{machine}: {ack_response}")
             else:
-                print(f"\n{RED}[WARN]{RESET} No command acknowledgement received for {team}{machine}")
+                print(f"\n{RED}[WARN]{RESET} No command acknowledgement received for {team}-{machine}")
 
             if cmd_response:
-                print(f"\n{BLUE}[*]{RESET} Command Output from {team}{machine}:")
+                print(f"\n{BLUE}[*]{RESET} Command output received from {team}-{machine}")
                 if len(dest_addrs) == 1:
                     print(cmd_response)
                 machine_outputs[dest_addr] = cmd_response
             else:
-                print(f"\n{RED}[WARN]{RESET} No command output received for {team}{machine}")
+                print(f"\n{RED}[WARN]{RESET} No command output received for {team}-{machine}")
                 machine_outputs[dest_addr] = "No output"
             
             if not responses:
-                print(f"{RED}[WARN]{RESET} No valid responses received for {team}{machine}")
+                print(f"{RED}[WARN]{RESET} No valid responses received for {team}-{machine}")
         
         print()  # Blank line for readability
 
