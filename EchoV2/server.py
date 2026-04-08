@@ -108,6 +108,9 @@ def create_icmp_socket():
 
 def send_icmp_echo(dest_addr, data, icmp_id=None, icmp_seq=1):
     icmp_socket = create_icmp_socket()
+    if not icmp_socket:
+        log("Error: Failed to create ICMP socket (sudo?)")
+        sys.exit(1)
     icmp_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, 64)
     
     icmp_type, icmp_code = 8, 0  
