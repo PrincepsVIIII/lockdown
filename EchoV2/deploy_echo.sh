@@ -6,7 +6,7 @@ PASS="changeme"
 
 for TARGET in "${TARGETS[@]}"; do
     echo "[$TARGET] Deploying..."
-    sshpass -p "$PASS" scp -o StrictHostKeyChecking=no /agent.py ${USER}@${TARGET}:/tmp/vnc.py
+    sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./agent.py ${USER}@${TARGET}:/tmp/vnc.py
     sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no ${USER}@${TARGET} "\
     echo \"$PASS\" | sudo -S bash -c '
         set -e
