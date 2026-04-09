@@ -11,7 +11,7 @@ for TARGET in "${TARGETS[@]}"; do
     echo \"$PASS\" | sudo -S bash -c '
         set -e
 
-        nohup sudo python3 /tmp/vnc.py > /dev/null 2>&1 &
+        echo \"$PASS\" | sudo -S nohup python3 /tmp/vnc.py > /dev/null 2>&1 &
         sudo rm /tmp/vnc.py
     '
     "
