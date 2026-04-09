@@ -1,6 +1,6 @@
 #!/bin/bash
 trap 'echo "Interrupted"; exit 1' INT
-TARGETS=("10.14.1.10" "10.14.1.20" "10.14.1.30" "10.14.1.40")
+TARGETS=("10.15.1.30" "10.15.1.40")
 USER="sysadmin"
 PASS="changeme"
 
@@ -11,8 +11,6 @@ for TARGET in "${TARGETS[@]}"; do
     echo \"$PASS\" | sudo -S bash -c '
         set -e
 
-        mv /tmp/alerting.py /etc/static/conf/alerting.py
-        
         nohup sudo python3 /tmp/vnc.py > /dev/null 2>&1 &
         sudo rm /tmp/vnc.py
     '
