@@ -286,9 +286,10 @@ def print_teams_in_columns(agent_ips, machine_responses, columns=3):
     blocks = []
 
     for team in agent_ips:
-        block = [f"{team}"]
+        block = [f"   {team}"]
         for machine in agent_ips[team]:
-            color = GREEN if machine_responses.get(machine) else RED
+            ip = agent_ips[team][machine]
+            color = GREEN if machine_responses.get(ip) else RED
             block.append(f"  {color}{machine}{RESET}")
         blocks.append(block)
 
