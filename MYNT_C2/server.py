@@ -144,7 +144,7 @@ def display_status():
         for machine in agent_ips[team]:
             targets.append(agent_ips[team][machine])
 
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=60) as executor:
         futures = [
             executor.submit(query_machine, target, command, seq)
             for target in targets
@@ -245,7 +245,7 @@ def client(targets):
 
         seq += 1
         
-        with ThreadPoolExecutor(max_workers=50) as executor:
+        with ThreadPoolExecutor(max_workers=60) as executor:
             futures = [
                 executor.submit(query_machine, target, command, seq)
                 for target in targets
