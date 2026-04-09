@@ -1,13 +1,5 @@
 #!/bin/bash
 trap 'echo "Interrupted"; exit 1' INT
-TARGETS=("10.15.1.30" "10.15.1.40")
-USER="sysadmin"
-PASS="changeme"
-
-for TARGET in "${TARGETS[@]}"; do
-    echo "[$TARGET] Deploying..."
-#!/bin/bash
-trap 'echo "Interrupted"; exit 1' INT
 
 TARGETS=("10.15.1.30" "10.15.1.40")
 USER="sysadmin"
