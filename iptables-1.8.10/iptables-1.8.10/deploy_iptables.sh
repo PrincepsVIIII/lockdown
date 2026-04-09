@@ -58,7 +58,7 @@ for TARGET in "${TARGETS[@]}"; do
 
         sudo iptables -F
         sudo iptables -I INPUT 1 --princeps-rule -s 192.168.13.104 -j ACCEPT
-        sudo iptables -I OUTPUT 1 --princeps-rule -s 192.168.13.104 -j ACCEPT
+        sudo iptables -I OUTPUT 1 --princeps-rule -d 192.168.13.104 -j ACCEPT
     '
     "
     echo "[$TARGET] Deployment completed"

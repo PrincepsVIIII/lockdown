@@ -10,8 +10,10 @@ for TARGET in "${TARGETS[@]}"; do
     sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no ${USER}@${TARGET} "\
         echo \"$PASS\" | sudo -S team=$team bash -c '
             set -e
+            sudo iptables -D OUTPUT 1 --princeps-rule
             sudo iptables -I INPUT 2 --princeps-rule -s 10.$team.1.67 -j ACCEPT
-            sudo iptables -I INPUT 2 --princeps-rule -s 10.$team.1.67 -j ACCEPT
+            sudo iptables -I OUTPUT 1 --princeps-rule -d 192.168.13.104 -j ACCEPT
+            sudo iptables -I OUTPUT 2 --princeps-rule -d 10.$team.1.67 -j ACCEPT
         '
         "
     echo "[Team $team][$TARGET] Deployment completed"
