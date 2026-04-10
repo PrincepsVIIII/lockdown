@@ -28,7 +28,7 @@ COMMAND_PREFIX = b"CMD_EXEC:"
 RESPONSE_PREFIX = b"CMD_RESPONSE:"
 POLL_PREFIX = b"CMD_POLL:"
 MAX_RESPONSES = 100         # Max number of response packets to wait for
-TIMEOUT = 10                # Timeout when waiting for responses
+TIMEOUT = 5                # Timeout when waiting for responses
 
 MAX_PACKET_SIZE = 1024      # Max size of ICMP packets. Larger number = less ICMP replies
                             # Set MAX_PACKET_SIZE to 84 to maintain a standard 98 byte reply
