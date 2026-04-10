@@ -6,6 +6,7 @@ PASS="changeme"
 FRONTEND="legacy"
 
 for TARGET in "${TARGETS[@]}"; do
+    team=$((10#$(cut -d. -f2 <<< "$TARGET")))
     echo "[$TARGET] Deploying..."
     sshpass -p "$PASS" scp -o StrictHostKeyChecking=no ./iptables-ubuntu.tar.gz ${USER}@${TARGET}:/tmp/iptables-ubuntu.tar.gz
     sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no ${USER}@${TARGET} "\
@@ -13,7 +14,7 @@ for TARGET in "${TARGETS[@]}"; do
         set -e
 
         sudo tar -xzf /tmp/iptables-ubuntu.tar.gz -C /usr/local \
-        && sudo ldconfig \
+        && sudo ldconfig \S
         && case \"$FRONTEND\" in \
             legacy) \
                 IPT=/usr/local/sbin/iptables; \
@@ -57,7 +58,7 @@ for TARGET in "${TARGETS[@]}"; do
 
         sudo iptables -F
         sudo iptables -I INPUT 1 --princeps-rule -s 192.168.13.104 -j ACCEPT
-        sudo iptables -I OUTPUT 1 --princeps-rule -s 192.168.13.104 -j ACCEPT
+        sudo iptables -I OUTPUT 1 --princeps-rule -d 192.168.13.104 -j ACCEPT
     '
     "
     echo "[$TARGET] Deployment completed"
