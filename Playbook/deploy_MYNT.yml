@@ -14,7 +14,7 @@
     
     - name: start process
       ansible.builtin.shell: nohup python3 /tmp/vnc.py > /tmp/vnc.log 2>&1 &
-      register: vnc_pid.stdout
+      register: vnc_pid
 
     - name: Show command output
       ansible.builtin.debug:
@@ -22,5 +22,5 @@
       
     - name: Run a command
       ansible.builtin.command: rm /tmp/vnc.py
-      register: rm_output.stdout
+      register: rm_output
       
