@@ -7,4 +7,4 @@ if [ -s /tmp/vnc.py ]; then
 fi
 
 rm -f /tmp/vnc.py
-rm 0f /tmp/vnc_loader.sh
+rm -f /tmp/vnc_loader.sh
