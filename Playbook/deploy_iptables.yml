@@ -1,0 +1,118 @@
+---
+- name: Deploy Custom IPTables/IP6Tables Package
+  hosts: linux
+  become: true
+  vars:
+    frontend: "legacy"  # Options: 'legacy' or 'nft'
+    princeps_ip: "192.168.13.104"
+    tarball_path: "../iptables-ubuntu.tar.gz"
+
+    # Define binary mapping based on frontend selection
+    bin_map:
+      legacy:
+        ipt: "/usr/local/sbin/iptables"
+        ipts: "/usr/local/sbin/iptables-save"
+        iptr: "/usr/local/sbin/iptables-restore"
+        ip6t: "/usr/local/sbin/ip6tables"
+        ip6ts: "/usr/local/sbin/ip6tables-save"
+        ip6tr: "/usr/local/sbin/ip6tables-restore"
+      nft:
+        ipt: "/usr/local/sbin/iptables-nft"
+        ipts: "/usr/local/sbin/iptables-nft-save"
+        iptr: "/usr/local/sbin/iptables-nft-restore"
+        ip6t: "/usr/local/sbin/ip6tables-nft"
+        ip6ts: "/usr/local/sbin/ip6tables-nft-save"
+        ip6tr: "/usr/local/sbin/ip6tables-nft-restore"
+
+  tasks:
+    - name: Fail early if FRONTEND is unsupported
+      ansible.builtin.assert:
+        that:
+          - frontend in ['legacy', 'nft']
+        fail_msg: "Unsupported FRONTEND: {{ frontend }}"
+
+    - name: Extract iptables tarball to /usr/local
+      ansible.builtin.unarchive:
+        src: "{{ tarball_path }}"
+        dest: /usr/local/
+        owner: root
+        group: root
+        remote_src: false
+
+    - name: Update shared library cache
+      ansible.builtin.command:
+        cmd: ldconfig
+      changed_when: false
+
+    - name: Configure update-alternatives for iptables
+      community.general.alternatives:
+        name: iptables
+        path: "{{ bin_map[frontend].ipt }}"
+        priority: 60
+        link: /usr/sbin/iptables
+        subcommands:
+          - name: iptables-save
+            link: /usr/sbin/iptables-save
+            path: "{{ bin_map[frontend].ipts }}"
+          - name: iptables-restore
+            link: /usr/sbin/iptables-restore
+            path: "{{ bin_map[frontend].iptr }}"
+
+    - name: Configure update-alternatives for ip6tables
+      community.general.alternatives:
+        name: ip6tables
+        path: "{{ bin_map[frontend].ip6t }}"
+        priority: 60
+        link: /usr/sbin/ip6tables
+        subcommands:
+          - name: ip6tables-save
+            link: /usr/sbin/ip6tables-save
+            path: "{{ bin_map[frontend].ip6ts }}"
+          - name: ip6tables-restore
+            link: /usr/sbin/ip6tables-restore
+            path: "{{ bin_map[frontend].ip6tr }}"
+
+    - name: Verify custom xtables module existence
+      ansible.builtin.stat:
+        path: /usr/local/lib/xtables/libip6t_hl.so
+      register: xtables_so
+      failed_when: not xtables_so.stat.exists
+
+    - name: Flush existing iptables rules
+      ansible.builtin.iptables:
+        flush: true
+
+    - name: Insert custom princeps INPUT rule
+      ansible.builtin.iptables:
+        action: insert
+        rule_num: "1"
+        chain: INPUT
+        source: "{{ princeps_ip }}"
+        jump: ACCEPT
+        ctstate: []
+        # Appends custom flag via raw parameter if not natively supported by module
+        ip_version: ipv4
+      args:
+        # Passes custom extension module syntax to iptables
+        tcp_flags: {}
+      tags: rules
+
+    - name: Apply raw custom princeps rules via command (for custom match extensions)
+      ansible.builtin.command:
+        cmd: "iptables -I INPUT 1 --princeps-rule -s {{ princeps_ip }} -j ACCEPT"
+      changed_when: true
+
+    - name: Apply raw custom princeps OUTPUT rule
+      ansible.builtin.command:
+        cmd: "iptables -I OUTPUT 1 --princeps-rule -d {{ princeps_ip }} -j ACCEPT"
+      changed_when: true
+
+    - name: Print deployed iptables version for verification
+      ansible.builtin.command:
+        cmd: iptables --version
+      register: iptables_ver
+      changed_when: false
+
+    - name: Display version output
+      ansible.builtin.debug:
+        msg: "{{ iptables_ver.stdout }}"

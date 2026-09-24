@@ -1,0 +1,70 @@
+---
+- name: Compile and Deploy Custom Procps-ng v4.0.4 (Ubuntu Only)
+  hosts: linux
+  become: true
+  vars:
+    tarball_path: "../procps-v4.0.4-princeps.tar.gz"
+    build_dir: "/tmp/procps_build"
+
+  tasks:
+    - name: Ensure target OS is Ubuntu
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == 'Ubuntu'
+        fail_msg: "This playbook is configured exclusively for Ubuntu targets. Host OS detected: {{ ansible_distribution }}"
+
+    - name: Install build toolchain dependencies
+      ansible.builtin.apt:
+        name:
+          - build-essential
+          - autoconf
+          - automake
+          - libtool
+          - gettext
+          - pkg-config
+          - libncurses-dev
+        state: present
+        update_cache: true
+
+    - name: Ensure staging directory exists
+      ansible.builtin.file:
+        path: "{{ build_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Extract custom procps tarball from relative parent directory
+      ansible.builtin.unarchive:
+        src: "{{ tarball_path }}"
+        dest: "{{ build_dir }}"
+        owner: root
+        group: root
+        remote_src: false
+        extra_opts:
+          - --strip-components=1
+
+    - name: Run configure script
+      ansible.builtin.command:
+        cmd: ./configure --prefix=/usr/local
+        chdir: "{{ build_dir }}"
+      register: configure_result
+      changed_when: "'creating Makefile' in configure_result.stdout"
+
+    - name: Compile procps-ng
+      community.general.make:
+        chdir: "{{ build_dir }}"
+        target: all
+
+    - name: Install procps-ng binaries and libraries
+      community.general.make:
+        chdir: "{{ build_dir }}"
+        target: install
+
+    - name: Refresh shared library bindings
+      ansible.builtin.command:
+        cmd: ldconfig
+      changed_when: false
+
+    - name: Clean up temporary extraction directory
+      ansible.builtin.file:
+        path: "{{ build_dir }}"
+        state: absent
