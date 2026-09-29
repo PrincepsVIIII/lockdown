@@ -1,0 +1,52 @@
+{
+  "merge_intervals": {
+    "raw_python_parses": true,
+    "raw_syntax_error": null,
+    "trailing_lines_removed_for_function_tests": 0,
+    "passed": 101,
+    "total": 105,
+    "failures": [
+      {
+        "test": "edge_1",
+        "error": "AssertionError(([(1, 2), (3, 4)], [(1, 4)]))"
+      },
+      {
+        "test": "random_49",
+        "error": "AssertionError(([(-13, -8), (-6, -4), (-3, -1), (1, 15)], [(-13, -8), (-6, -1), (1, 15)]))"
+      },
+      {
+        "test": "random_89",
+        "error": "AssertionError(([(-19, 18), (19, 19)], [(-19, 19)]))"
+      },
+      {
+        "test": "random_98",
+        "error": "AssertionError(([(-20, -13), (-12, -9), (-6, 14)], [(-20, -9), (-6, 14)]))"
+      }
+    ]
+  },
+  "count_statuses": {
+    "raw_python_parses": true,
+    "raw_syntax_error": null,
+    "trailing_lines_removed_for_function_tests": 0,
+    "passed": 104,
+    "total": 106,
+    "failures": [
+      {
+        "test": "edge_2",
+        "error": "AssertionError(({200: 1}, {}))"
+      },
+      {
+        "test": "edge_3",
+        "error": "ValueError(\"invalid literal for int() with base 10: '\u00b200'\")"
+      }
+    ]
+  },
+  "failure_window": {
+    "raw_python_parses": true,
+    "raw_syntax_error": null,
+    "trailing_lines_removed_for_function_tests": 0,
+    "passed": 108,
+    "total": 108,
+    "failures": []
+  }
+}

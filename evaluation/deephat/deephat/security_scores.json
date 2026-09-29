@@ -1,0 +1,110 @@
+[
+  {
+    "case": "sql_concat",
+    "expected_vulnerable": true,
+    "expected_cwe": "CWE-89",
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"89\",\n  \"explanation\": \"SQL injection vulnerability exists as user input is directly concatenated into SQL query without sanitization.\"\n}\n```\n\n## Explanation\n\nThe function `lookup()` is vulnerable to SQL injection attacks because it directly concatenates the `name` parameter into the SQL query string. \n\nFor example, if an attacker provides the input `' OR 1=1`, the resulting query becomes:\n\n```sql\nSELECT id FROM users WHERE name='' OR 1=1'\n```\n\nThis would return all records in the `users` table, bypassing the intended filtering logic.\n\n## Mitigation\n\nTo fix this vulnerability, parameterized queries should be used:\n\n```python\ndef lookup(conn, name):\n    return conn.execute(\"SELECT id FROM users WHERE name=?\", (name,)).fetchall()\n```\n\nThis approach prevents SQL injection by treating the input as data rather than executable code."
+  },
+  {
+    "case": "sql_bound",
+    "expected_vulnerable": false,
+    "expected_cwe": null,
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": false,\n  \"cwe\": null,\n  \"explanation\": \"Parameterized query prevents SQL injection attacks.\"\n}\n```\n\n## Explanation\n\nThe function uses parameterized queries which properly separate SQL code from data. This prevents attackers from injecting malicious SQL code through the `name` parameter. The query uses a placeholder (`?`) which is replaced safely by the database driver.\n\n## CWE Analysis\n\nThis code does not exhibit any SQL injection vulnerabilities as it uses parameterized queries correctly. The vulnerability would only exist if string concatenation was used instead of parameterized queries. \n\n## Security Measures\n\n1. The query uses `?` placeholders which are replaced safely\n2. The database driver handles escaping special characters\n3. The query structure prevents attackers from modifying the query logic\n\n## Best Practice\n\nParameterized queries are the standard defense against SQL injection attacks. This implementation follows secure coding practices."
+  },
+  {
+    "case": "shell_concat",
+    "expected_vulnerable": true,
+    "expected_cwe": "CWE-78",
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"77\",\n  \"explanation\": \"Command injection vulnerability exists as user input is directly concatenated into a shell command without proper sanitization.\"\n}\n```\n\n## Vulnerability Analysis\n\nThe function `hello()` is vulnerable to command injection attacks. The key issue is that the `name` parameter is directly concatenated into a shell command without proper sanitization.\n\n### Attack Scenario\n\nAn attacker could provide input like:\n```\nnormal_name; rm -rf /\n```\n\nWhen this is passed to the function, the shell would execute both commands:\n```\nprintf %s normal_name; rm -rf /\n```\n\n### Mitigation\n\nTo fix this vulnerability, proper input validation and escaping should be implemented. For example:\n\n```python\ndef hello(name):\n    # Validate input\n    if not name.isalnum():\n        return \"Invalid name\"\n    \n    # Use list of arguments instead of shell=True\n    return subprocess.run(['printf', '%s', name], capture_output=True)\n```\n\n## CWE-77: Command Injection\n\nThis vulnerability falls under CWE-77 (Improper Neutralization of Special Elements used"
+  },
+  {
+    "case": "shell_argv",
+    "expected_vulnerable": false,
+    "expected_cwe": null,
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": false,\n  \"cwe\": null,\n  \"explanation\": \"The code uses subprocess.run with shell=False which prevents shell injection attacks. The format string '%s' is constant and cannot be manipulated by the attacker.\"\n}\n```\n\n## Explanation\n\nThe code uses `subprocess.run()` with `shell=False`, which is a critical security measure that prevents shell injection attacks. The format string `'%s'` is hardcoded and cannot be manipulated by the attacker. This combination ensures that even if `name` contains shell metacharacters like `;`, `|`, `&`, or backticks, they will be treated as literal characters rather than command separators.\n\n## CWE Analysis\n\nThis vulnerability falls under:\n- CWE-77: Improper Neutralization of Special Elements used in a Command ('Command Injection')\n- CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\n\n## Mitigation\n\nThe code is properly implemented as it uses:\n1. `shell=False` to prevent shell interpretation\n2. A constant format string that cannot be manipulated\n\n## Testing\n\nTo verify this protection,"
+  },
+  {
+    "case": "path_prefix",
+    "expected_vulnerable": true,
+    "expected_cwe": "CWE-22",
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"CWE-22\",\n  \"explanation\": \"Path traversal vulnerability exists as the code resolves paths without proper validation. An attacker can use '../' sequences to traverse outside the intended directory.\"\n}\n```"
+  },
+  {
+    "case": "path_relative",
+    "expected_vulnerable": false,
+    "expected_cwe": null,
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"CWE-22\",\n  \"explanation\": \"Path traversal vulnerability exists as the code resolves paths without proper validation. An attacker can use '../' sequences to traverse outside the intended directory.\"\n}\n```"
+  },
+  {
+    "case": "missing_owner",
+    "expected_vulnerable": true,
+    "expected_cwe": "CWE-862",
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"CWE-862\",\n  \"explanation\": \"SQL injection vulnerability exists as user.id is trusted but doc_id is untrusted. Without proper parameterization, SQL injection attacks can expose unauthorized documents.\"\n}\n```\n\n## Vulnerability Analysis\n\nThe function `get_doc()` is vulnerable to SQL injection attacks because:\n\n1. `doc_id` is untrusted input\n2. The query uses string formatting (`?`) which is vulnerable to injection attacks\n\n## Attack Scenario\n\nAn attacker could provide a malicious `doc_id` like:\n```\n1 OR 1=1--\n```\n\nThis would modify the query to:\n```\nSELECT body FROM docs WHERE id=1 OR 1=1--\n```\n\nWhich would return all documents in the database.\n\n## Mitigation\n\nTo fix this vulnerability, proper parameterization should be implemented:\n\n```python\ndef get_doc(db, user, doc_id):\n    return db.execute('SELECT body FROM docs WHERE id=?', (doc_id,)).fetchone()\n```\n\n## Additional Security Measures\n\n1. Implement proper input validation\n2. Apply principle of least"
+  },
+  {
+    "case": "checked_owner",
+    "expected_vulnerable": false,
+    "expected_cwe": null,
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"CWE-863\",\n  \"explanation\": \"SQL injection vulnerability exists as user.id is trusted but doc_id is untrusted. An attacker could manipulate doc_id to access unauthorized documents.\"\n}\n```\n\n## Vulnerability Analysis\n\nThe function `get_doc()` has a SQL injection vulnerability. While `user.id` is trusted as it comes from authenticated session data, `doc_id` is untrusted as it comes from user input.\n\n### Attack Scenario\n\nAn attacker could:\n1. Intercept a request to view a document\n2. Modify the `doc_id` parameter to access another user's document\n3. If the application doesn't properly validate `doc_id`, the attacker could retrieve private documents\n\n### Mitigation\n\nTo fix this vulnerability, proper input validation should be implemented. For example:\n\n```python\ndef get_doc(db, user, doc_id):\n    # Validate doc_id is numeric\n    if not isinstance(doc_id, int) or doc_id <= 0:\n        return None\n    \n    return db.execute('SELECT body FROM docs WHERE id=? AND owner_id=?', \n                      ("
+  },
+  {
+    "case": "yaml_unsafe",
+    "expected_vulnerable": true,
+    "expected_cwe": "CWE-502",
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"502\",\n  \"explanation\": \"PyYAML's UnsafeLoader allows arbitrary code execution during deserialization. Using this loader with untrusted YAML data can lead to remote code execution attacks.\"\n}\n```"
+  },
+  {
+    "case": "yaml_safe",
+    "expected_vulnerable": false,
+    "expected_cwe": null,
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": true,\n  \"cwe\": \"CWE-502\",\n  \"explanation\": \"PyYAML's safe_load can be vulnerable to resource exhaustion attacks if untrusted YAML contains deeply nested structures or excessive sequences.\"\n}\n```\n\n## Explanation\n\nThe vulnerability exists because PyYAML's `safe_load()` function does not properly limit the depth of nested structures or the size of sequences. An attacker could craft a YAML payload with:\n\n1. Deeply nested dictionaries or lists\n2. Excessive sequences (e.g., `[1, 2, 3, ...]` repeated many times)\n\nThese structures can cause excessive memory consumption during parsing, leading to denial of service attacks. The vulnerability is mitigated by using `safe_load()` rather than `load()`, which is vulnerable to arbitrary code execution attacks."
+  },
+  {
+    "case": "buffer_unbounded",
+    "expected_vulnerable": true,
+    "expected_cwe": "CWE-121",
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n    \"vulnerable\": true,\n    \"cwe\": \"CWE-120\",\n    \"explanation\": \"Stack buffer overflow vulnerability in strcpy() call. The function copies src to buf without bounds checking, allowing attacker to overflow buf if src exceeds 16 bytes.\"\n}\n```"
+  },
+  {
+    "case": "buffer_bounded",
+    "expected_vulnerable": false,
+    "expected_cwe": null,
+    "format_valid": false,
+    "prediction": null,
+    "correct": false,
+    "answer": "```json\n{\n  \"vulnerable\": false,\n  \"cwe\": null,\n  \"explanation\": \"No stack buffer overflow vulnerability exists as snprintf() properly handles buffer size constraints.\"\n}\n```\n\nExplanation: The function uses snprintf() which is designed to prevent buffer overflows by limiting the number of bytes written to the buffer. The buffer size is explicitly defined as 16 bytes, and snprintf() will not write more than this amount. Therefore, even if the source string is longer than 16 bytes, it will be properly truncated. The return value is also safe as it only accesses the first byte of the buffer."
+  }
+]

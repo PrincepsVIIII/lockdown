@@ -1,0 +1,146 @@
+{
+  "classification_correct_after_json_extraction": 9,
+  "security_cases": 12,
+  "plain_json_compliant": 0,
+  "true_positives": 6,
+  "vulnerable_cases": 6,
+  "false_positives": 3,
+  "safe_cases": 6,
+  "unparseable": 0,
+  "median_generation_tps": 56.163329891019885,
+  "note": "Classification scores do not imply correct reasoning. Explanations must be reviewed independently.",
+  "cases": [
+    {
+      "case": "sql_concat",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-89",
+      "returned_cwe": "89",
+      "explanation": "SQL injection vulnerability exists as user input is directly concatenated into SQL query without sanitization.",
+      "truncated": false
+    },
+    {
+      "case": "sql_bound",
+      "expected_vulnerable": false,
+      "prediction": false,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": null,
+      "explanation": "Parameterized query prevents SQL injection attacks.",
+      "truncated": false
+    },
+    {
+      "case": "shell_concat",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-78",
+      "returned_cwe": "77",
+      "explanation": "Command injection vulnerability exists as user input is directly concatenated into a shell command without proper sanitization.",
+      "truncated": true
+    },
+    {
+      "case": "shell_argv",
+      "expected_vulnerable": false,
+      "prediction": false,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": null,
+      "explanation": "The code uses subprocess.run with shell=False which prevents shell injection attacks. The format string '%s' is constant and cannot be manipulated by the attacker.",
+      "truncated": true
+    },
+    {
+      "case": "path_prefix",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-22",
+      "returned_cwe": "CWE-22",
+      "explanation": "Path traversal vulnerability exists as the code resolves paths without proper validation. An attacker can use '../' sequences to traverse outside the intended directory.",
+      "truncated": false
+    },
+    {
+      "case": "path_relative",
+      "expected_vulnerable": false,
+      "prediction": true,
+      "classification_correct": false,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": "CWE-22",
+      "explanation": "Path traversal vulnerability exists as the code resolves paths without proper validation. An attacker can use '../' sequences to traverse outside the intended directory.",
+      "truncated": false
+    },
+    {
+      "case": "missing_owner",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-862",
+      "returned_cwe": "CWE-862",
+      "explanation": "SQL injection vulnerability exists as user.id is trusted but doc_id is untrusted. Without proper parameterization, SQL injection attacks can expose unauthorized documents.",
+      "truncated": true
+    },
+    {
+      "case": "checked_owner",
+      "expected_vulnerable": false,
+      "prediction": true,
+      "classification_correct": false,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": "CWE-863",
+      "explanation": "SQL injection vulnerability exists as user.id is trusted but doc_id is untrusted. An attacker could manipulate doc_id to access unauthorized documents.",
+      "truncated": true
+    },
+    {
+      "case": "yaml_unsafe",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-502",
+      "returned_cwe": "502",
+      "explanation": "PyYAML's UnsafeLoader allows arbitrary code execution during deserialization. Using this loader with untrusted YAML data can lead to remote code execution attacks.",
+      "truncated": false
+    },
+    {
+      "case": "yaml_safe",
+      "expected_vulnerable": false,
+      "prediction": true,
+      "classification_correct": false,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": "CWE-502",
+      "explanation": "PyYAML's safe_load can be vulnerable to resource exhaustion attacks if untrusted YAML contains deeply nested structures or excessive sequences.",
+      "truncated": false
+    },
+    {
+      "case": "buffer_unbounded",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-121",
+      "returned_cwe": "CWE-120",
+      "explanation": "Stack buffer overflow vulnerability in strcpy() call. The function copies src to buf without bounds checking, allowing attacker to overflow buf if src exceeds 16 bytes.",
+      "truncated": false
+    },
+    {
+      "case": "buffer_bounded",
+      "expected_vulnerable": false,
+      "prediction": false,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": null,
+      "explanation": "No stack buffer overflow vulnerability exists as snprintf() properly handles buffer size constraints.",
+      "truncated": false
+    }
+  ]
+}

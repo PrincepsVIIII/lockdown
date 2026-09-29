@@ -1,0 +1,146 @@
+{
+  "classification_correct_after_json_extraction": 8,
+  "security_cases": 12,
+  "plain_json_compliant": 0,
+  "true_positives": 6,
+  "vulnerable_cases": 6,
+  "false_positives": 4,
+  "safe_cases": 6,
+  "unparseable": 0,
+  "median_generation_tps": 64.13077376754103,
+  "note": "Classification scores do not imply correct reasoning. Explanations must be reviewed independently.",
+  "cases": [
+    {
+      "case": "sql_concat",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-89",
+      "returned_cwe": "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
+      "explanation": "The SQL query is constructed by concatenating the attacker-controlled 'name' parameter, which allows for SQL injection.",
+      "truncated": false
+    },
+    {
+      "case": "sql_bound",
+      "expected_vulnerable": false,
+      "prediction": false,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": null,
+      "explanation": "The query uses parameterized SQL, preventing SQL injection.",
+      "truncated": false
+    },
+    {
+      "case": "shell_concat",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-78",
+      "returned_cwe": "CWE-78: OS Command Injection",
+      "explanation": "The 'name' parameter is directly used in a shell command without proper sanitization, allowing command injection.",
+      "truncated": false
+    },
+    {
+      "case": "shell_argv",
+      "expected_vulnerable": false,
+      "prediction": false,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": null,
+      "explanation": "The command does not use shell=True, preventing shell injection.",
+      "truncated": false
+    },
+    {
+      "case": "path_prefix",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-22",
+      "returned_cwe": "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+      "explanation": "The function does not properly validate the input, allowing the attacker to traverse the filesystem and read files outside the intended directory.",
+      "truncated": false
+    },
+    {
+      "case": "path_relative",
+      "expected_vulnerable": false,
+      "prediction": true,
+      "classification_correct": false,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": "CWE-22",
+      "explanation": "The function does not properly sanitize the input, allowing path traversal.",
+      "truncated": false
+    },
+    {
+      "case": "missing_owner",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-862",
+      "returned_cwe": "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
+      "explanation": "The doc_id parameter is not properly sanitized, allowing SQL injection.",
+      "truncated": false
+    },
+    {
+      "case": "checked_owner",
+      "expected_vulnerable": false,
+      "prediction": true,
+      "classification_correct": false,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
+      "explanation": "The doc_id is not properly sanitized, allowing SQL injection.",
+      "truncated": false
+    },
+    {
+      "case": "yaml_unsafe",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-502",
+      "returned_cwe": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+      "explanation": "The use of yaml.UnsafeLoader allows arbitrary code execution when deserializing untrusted YAML data.",
+      "truncated": false
+    },
+    {
+      "case": "yaml_safe",
+      "expected_vulnerable": false,
+      "prediction": true,
+      "classification_correct": false,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+      "explanation": "The PyYAML library's safe_load function does not fully sanitize input, allowing for arbitrary code execution through specially crafted YAML data.",
+      "truncated": false
+    },
+    {
+      "case": "buffer_unbounded",
+      "expected_vulnerable": true,
+      "prediction": true,
+      "classification_correct": true,
+      "plain_json_compliant": false,
+      "expected_cwe": "CWE-121",
+      "returned_cwe": "CWE-120: Buffer Overflow",
+      "explanation": "strcpy does not check for buffer overflow, allowing attacker-controlled input to exceed the 16-byte buffer size.",
+      "truncated": false
+    },
+    {
+      "case": "buffer_bounded",
+      "expected_vulnerable": false,
+      "prediction": true,
+      "classification_correct": false,
+      "plain_json_compliant": false,
+      "expected_cwe": null,
+      "returned_cwe": "CWE-120: Buffer Overflow",
+      "explanation": "snprintf does not check if the source string exceeds the buffer size, leading to a stack buffer overflow.",
+      "truncated": false
+    }
+  ]
+}

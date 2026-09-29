@@ -1,0 +1,198 @@
+---
+# Run from Playbook/: ansible-playbook deploy_notify.yml --limit ubuntu1
+# Override notify_user if the desktop login differs from the SSH account.
+- name: Deploy notify to Linux desktops
+  hosts: linux
+  become: true
+  gather_facts: true
+
+  vars:
+    notify_packages:
+      Debian: [python3, libnotify-bin]
+      RedHat: [python3, libnotify]
+      Archlinux: [python, libnotify]
+
+  pre_tasks:
+    - name: Resolve defaults while preserving inventory and command-line settings
+      ansible.builtin.set_fact:
+        notify_user: "{{ notify_user | default(ansible_user | default('')) }}"
+        notify_host: "{{ notify_host | default('0.0.0.0') }}"
+        notify_port: "{{ notify_port | default(8765) }}"
+        notify_autostart: "{{ notify_autostart | default(true) }}"
+        # Controller path: the first deployment creates it; later runs reuse it.
+        notify_key_file: >-
+          {{ notify_key_file | default(
+             (lookup('ansible.builtin.env', 'XDG_CONFIG_HOME') |
+              default(lookup('ansible.builtin.env', 'HOME') + '/.config', true)) + '/notify/key') }}
+
+    - name: Validate the destination and listener settings
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.system == 'Linux'
+          - ansible_facts.os_family in notify_packages
+          - notify_user | length > 0
+          - notify_user != 'root'
+          - notify_host is match('^[a-zA-Z0-9_.-]+$')
+          - notify_port | string is match('^[0-9]+$')
+          - notify_port | int >= 1
+          - notify_port | int <= 65535
+          - notify_key_file is match('^/')
+        fail_msg: >-
+          Use a Debian/Ubuntu, Red Hat/Fedora, or Arch Linux host, a non-root
+          notify_user who logs into its desktop, a valid bind host and port,
+          and an absolute notify_key_file path on the controller.
+
+    - name: Find the existing desktop user and home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ notify_user }}"
+
+    - name: Resolve the desktop user's configuration directory
+      ansible.builtin.set_fact:
+        notify_config_home: >-
+          {{ notify_config_home | default(ansible_facts.getent_passwd[notify_user][4] + '/.config') }}
+
+    - name: Validate the desktop account and configuration path
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.getent_passwd[notify_user][1] | int != 0
+          - ansible_facts.getent_passwd[notify_user][4] is match('^/')
+          - notify_config_home is match('^/')
+        fail_msg: "notify_user must be an existing non-root desktop account with an absolute home/config path."
+
+    - name: Prepare the shared key on the controller
+      delegate_to: localhost
+      become: false
+      run_once: true
+      block:
+        - name: Check whether the controller already has a key
+          ansible.builtin.stat:
+            path: "{{ notify_key_file }}"
+          register: notify_controller_key
+
+        - name: Require an existing key for a read-only check run
+          ansible.builtin.assert:
+            that:
+              - not ansible_check_mode or notify_controller_key.stat.exists
+            fail_msg: >-
+              Before --check, generate a key with:
+              python3 ../Notify/notify keygen --key-file {{ notify_key_file | quote }}
+
+        - name: Generate the controller key if it does not exist
+          ansible.builtin.command:
+            argv:
+              - "{{ ansible_playbook_python }}"
+              - "{{ playbook_dir }}/../Notify/notify"
+              - keygen
+              - --key-file
+              - "{{ notify_key_file }}"
+            creates: "{{ notify_key_file }}"
+          when: not ansible_check_mode
+
+        - name: Read the shared key once for all receivers
+          ansible.builtin.set_fact:
+            notify_shared_key: "{{ lookup('ansible.builtin.file', notify_key_file) | trim }}"
+          no_log: true
+
+        - name: Verify the shared key format
+          ansible.builtin.assert:
+            that:
+              - notify_shared_key is match('^[0-9a-fA-F]{64}$')
+            fail_msg: "The shared key must be the 64 hexadecimal characters produced by notify keygen."
+          no_log: true
+
+  tasks:
+    - name: Install dependencies on Debian and Ubuntu
+      ansible.builtin.apt:
+        name: "{{ notify_packages[ansible_facts.os_family] }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_facts.os_family == 'Debian'
+
+    - name: Install dependencies on other supported distributions
+      ansible.builtin.package:
+        name: "{{ notify_packages[ansible_facts.os_family] }}"
+        state: present
+      when: ansible_facts.os_family != 'Debian'
+
+    - name: Ensure the local executable directory exists
+      ansible.builtin.file:
+        path: /usr/local/bin
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Install the notify executable
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../Notify/notify"
+        dest: /usr/local/bin/notify
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Ensure the desktop user's configuration directory exists
+      ansible.builtin.file:
+        path: "{{ notify_config_home }}"
+        state: directory
+        owner: "{{ notify_user }}"
+        group: "{{ ansible_facts.getent_passwd[notify_user][2] }}"
+        # Preserve permissions if the user's configuration directory exists.
+
+    - name: Create the private key directory
+      ansible.builtin.file:
+        path: "{{ notify_config_home }}/notify"
+        state: directory
+        owner: "{{ notify_user }}"
+        group: "{{ ansible_facts.getent_passwd[notify_user][2] }}"
+        mode: '0700'
+
+    - name: Install the same shared key on each receiver
+      ansible.builtin.copy:
+        content: "{{ notify_shared_key }}\n"
+        dest: "{{ notify_config_home }}/notify/key"
+        owner: "{{ notify_user }}"
+        group: "{{ ansible_facts.getent_passwd[notify_user][2] }}"
+        mode: '0600'
+      no_log: true
+      diff: false
+
+    - name: Create the desktop autostart directory
+      ansible.builtin.file:
+        path: "{{ notify_config_home }}/autostart"
+        state: directory
+        owner: "{{ notify_user }}"
+        group: "{{ ansible_facts.getent_passwd[notify_user][2] }}"
+      when: notify_autostart | bool
+
+    - name: Enable notify at graphical login
+      ansible.builtin.template:
+        src: notify.desktop.j2
+        dest: "{{ notify_config_home }}/autostart/notify.desktop"
+        owner: "{{ notify_user }}"
+        group: "{{ ansible_facts.getent_passwd[notify_user][2] }}"
+        mode: '0644'
+      when: notify_autostart | bool
+
+    - name: Remove notify autostart when disabled
+      ansible.builtin.file:
+        path: "{{ notify_config_home }}/autostart/notify.desktop"
+        state: absent
+      when: not (notify_autostart | bool)
+
+    - name: Report how to start receiving
+      ansible.builtin.debug:
+        msg:
+          - >-
+            notify is installed for {{ notify_user }} on {{ inventory_hostname }}.
+            Desktop login autostart: {{ notify_autostart | bool }}.
+          - >-
+            {{ 'The listener starts at the next graphical login.' if notify_autostart | bool
+               else 'Desktop login autostart is disabled.' }}
+            To start now, run this in that user's desktop terminal:
+            /usr/local/bin/notify listen --key-file {{ (notify_config_home + '/notify/key') | quote }}
+            --host {{ notify_host | quote }} --port {{ notify_port | int }}
+          - >-
+            Existing listeners keep their loaded key/settings until restarted.
+            Allow TCP {{ notify_port | int }} from your sender in the receiver's firewall.

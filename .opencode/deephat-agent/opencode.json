@@ -1,0 +1,26 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "deephat-agent": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "DeepHat (local agent adapter)",
+      "options": {"baseURL": "http://127.0.0.1:11435/v1"},
+      "models": {
+        "deephat": {
+          "name": "DeepHat V1 7B Agent",
+          "tool_call": true,
+          "limit": {"context": 32768, "output": 4096}
+        }
+      }
+    }
+  },
+  "agent": {
+    "deephat": {
+      "description": "Local DeepHat coding agent with compatible tool formatting",
+      "mode": "primary",
+      "model": "deephat-agent/deephat",
+      "temperature": 0,
+      "prompt": "You are a coding assistant working in the user's current project. Use the available tools to inspect files and make requested changes directly. Read existing files before editing. Use the write tool for new files and edit for existing files. Inspect tool results and continue until the task is complete. When a call fails, correct the cause before retrying. Do not claim a change succeeded unless a tool result confirms it. Keep replies concise."
+    }
+  }
+}

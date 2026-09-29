@@ -1,0 +1,10 @@
+{# Quote each Exec argument according to the Desktop Entry specification. #}
+{% macro desktop_arg(value) -%}
+"{{ value | string | replace('%', '%%') | replace('\\', '\\\\') | replace('"', '\\"') | replace('`', '\\`') | replace('$', '\\$') | replace('\\', '\\\\') | replace('\n', '\\n') | replace('\r', '\\r') }}"
+{%- endmacro %}
+[Desktop Entry]
+Type=Application
+Name=notify
+Comment=Receive desktop messages from trusted senders
+Exec={{ desktop_arg('/usr/local/bin/notify') }} listen --key-file {{ desktop_arg(notify_config_home + '/notify/key') }} --host {{ desktop_arg(notify_host) }} --port {{ notify_port | int }}
+Terminal=false

@@ -1,0 +1,117 @@
+{
+  "started_utc": "2026-09-27T00:05:22.805779+00:00",
+  "model": "hf.co/mradermacher/DeepHat-V1-7B-GGUF:Q5_K_M",
+  "version": {
+    "version": "0.34.0"
+  },
+  "gpu_before": "NVIDIA GeForce RTX 3060, 12288 MiB, 2209 MiB, 9907 MiB, 23 %",
+  "model_details": {
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "qwen2",
+      "families": [
+        "qwen2"
+      ],
+      "parameter_size": "7.62B",
+      "quantization_level": "Q5_K_M"
+    },
+    "capabilities": [
+      "completion",
+      "tools",
+      "insert"
+    ],
+    "parameters": null,
+    "model_info": {
+      "general.architecture": "qwen2",
+      "general.base_model.0.name": "Qwen2.5 Coder 7B",
+      "general.base_model.0.organization": "Qwen",
+      "general.base_model.0.repo_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B",
+      "general.base_model.count": 1,
+      "general.basename": "Qwen2.5-Coder",
+      "general.file_type": 17,
+      "general.languages": null,
+      "general.license": "apache-2.0",
+      "general.organization": "Qwen",
+      "general.parameter_count": 7615616512,
+      "general.quantization_version": 2,
+      "general.size_label": "7B",
+      "general.source.url": "https://huggingface.co/DeepHat/DeepHat-V1-7B",
+      "general.tags": null,
+      "general.type": "model",
+      "general.url": "https://huggingface.co/mradermacher/DeepHat-V1-7B-GGUF",
+      "mradermacher.convert_type": "hf",
+      "mradermacher.quantize_version": "2",
+      "mradermacher.quantized_at": "2025-07-22T07:21:44+02:00",
+      "mradermacher.quantized_by": "mradermacher",
+      "mradermacher.quantized_on": "leia",
+      "qwen2.attention.head_count": 28,
+      "qwen2.attention.head_count_kv": 4,
+      "qwen2.attention.layer_norm_rms_epsilon": 1e-06,
+      "qwen2.block_count": 28,
+      "qwen2.context_length": 32768,
+      "qwen2.embedding_length": 3584,
+      "qwen2.feed_forward_length": 18944,
+      "qwen2.rope.freq_base": 1000000,
+      "tokenizer.ggml.add_bos_token": false,
+      "tokenizer.ggml.bos_token_id": 151644,
+      "tokenizer.ggml.eos_token_id": 151645,
+      "tokenizer.ggml.merges": null,
+      "tokenizer.ggml.model": "gpt2",
+      "tokenizer.ggml.padding_token_id": 151643,
+      "tokenizer.ggml.pre": "qwen2",
+      "tokenizer.ggml.token_type": null,
+      "tokenizer.ggml.tokens": null
+    },
+    "template": "{{- if .Suffix }}<|fim_prefix|>{{ .Prompt }}<|fim_suffix|>{{ .Suffix }}<|fim_middle|>\n{{- else if .Messages }}\n{{- if or .System .Tools }}<|im_start|>system\n{{- if .System }}\n{{ .System }}\n{{- end }}\n{{- if .Tools }}\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{{- range .Tools }}\n{\"type\": \"function\", \"function\": {{ .Function }}}\n{{- end }}\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call>\n{{- end }}<|im_end|>\n{{ end }}\n{{- range $i, $_ := .Messages }}\n{{- $last := eq (len (slice $.Messages $i)) 1 -}}\n{{- if eq .Role \"user\" }}<|im_start|>user\n{{ .Content }}<|im_end|>\n{{ else if eq .Role \"assistant\" }}<|im_start|>assistant\n{{ if .Content }}{{ .Content }}\n{{- else if .ToolCalls }}<tool_call>\n{{ range .ToolCalls }}{\"name\": \"{{ .Function.Name }}\", \"arguments\": {{ .Function.Arguments }}}\n{{ end }}</tool_call>\n{{- end }}{{ if not $last }}<|im_end|>\n{{ end }}\n{{- else if eq .Role \"tool\" }}<|im_start|>user\n<tool_response>\n{{ .Content }}\n</tool_response><|im_end|>\n{{ end }}\n{{- if and (ne .Role \"assistant\") $last }}<|im_start|>assistant\n{{ end }}\n{{- end }}\n{{- else }}\n{{- if .System }}<|im_start|>system\n{{ .System }}<|im_end|>\n{{ end }}{{ if .Prompt }}<|im_start|>user\n{{ .Prompt }}<|im_end|>\n{{ end }}<|im_start|>assistant\n{{ end }}{{ .Response }}{{ if .Response }}<|im_end|>{{ end }}"
+  },
+  "gpu_8k": "NVIDIA GeForce RTX 3060, 12288 MiB, 7776 MiB, 4340 MiB, 97 %",
+  "ollama_ps_8k": {
+    "models": [
+      {
+        "name": "hf.co/mradermacher/DeepHat-V1-7B-GGUF:Q5_K_M",
+        "model": "hf.co/mradermacher/DeepHat-V1-7B-GGUF:Q5_K_M",
+        "size": 5827576462,
+        "digest": "61e83478eb0423b20d01951eec5144f4d9f7cd127003f94562c101da97ab4233",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen2",
+          "families": [
+            "qwen2"
+          ],
+          "parameter_size": "7.62B",
+          "quantization_level": "unknown"
+        },
+        "expires_at": "2026-09-26T20:11:07.2260664-04:00",
+        "size_vram": 5827576462,
+        "context_length": 8192
+      }
+    ]
+  },
+  "gpu_16k": "NVIDIA GeForce RTX 3060, 12288 MiB, 8284 MiB, 3832 MiB, 96 %",
+  "ollama_ps_16k": {
+    "models": [
+      {
+        "name": "hf.co/mradermacher/DeepHat-V1-7B-GGUF:Q5_K_M",
+        "model": "hf.co/mradermacher/DeepHat-V1-7B-GGUF:Q5_K_M",
+        "size": 6314115726,
+        "digest": "61e83478eb0423b20d01951eec5144f4d9f7cd127003f94562c101da97ab4233",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen2",
+          "families": [
+            "qwen2"
+          ],
+          "parameter_size": "7.62B",
+          "quantization_level": "unknown"
+        },
+        "expires_at": "2026-09-26T20:11:44.5181424-04:00",
+        "size_vram": 6314115726,
+        "context_length": 16384
+      }
+    ]
+  },
+  "finished_utc": "2026-09-27T00:06:44.568185+00:00"
+}

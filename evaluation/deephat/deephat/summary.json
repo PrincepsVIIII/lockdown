@@ -1,0 +1,15 @@
+{
+  "model": "hf.co/mradermacher/DeepHat-V1-7B-GGUF:Q5_K_M",
+  "security_total": 12,
+  "format_failures": 12,
+  "median_generation_tps": 56.163329891019885,
+  "tool_scores": {
+    "native_call_correct": false,
+    "missing_call_correct": false
+  },
+  "coding_status": "Reviewed and tested; see coding_scores.json. All original outputs retained.",
+  "plain_json_and_classification_correct": 0,
+  "false_positives_among_plain_json_answers": 0,
+  "false_negatives_among_plain_json_answers": 0,
+  "interpretation": "Zero plain-JSON answers were parseable. See classification_scores.json for classification after extracting fenced JSON, and coding_scores.json for executed function tests."
+}

@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+"""Send authenticated pop-up messages to Linux desktops. No pip packages required."""
+
+import argparse
+import hashlib
+import hmac
+import html
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import threading
+import time
+from http.client import HTTPException
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+
+
+PORT = 8765
+MAX_BODY = 32768
+CLOCK_WINDOW = 60
+IO_TIMEOUT = 5
+
+
+def config_dir():
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+
+
+def default_key():
+    return config_dir() / "notify" / "key"
+
+
+def read_key(path):
+    try:
+        with Path(path).expanduser().open("r", encoding="ascii") as handle:
+            value = handle.read(1024).strip()
+    except FileNotFoundError:
+        raise ValueError("Key file not found. Run 'notify keygen' and copy that key to each receiver.") from None
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
+        raise ValueError("Key file must contain the 64 hexadecimal characters produced by 'notify keygen'.")
+    return bytes.fromhex(value)
+
+
+def keygen(args):
+    path = Path(args.key_file).expanduser().resolve()
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        raise ValueError("Key already exists: {} (left unchanged).".format(path)) from None
+    with os.fdopen(fd, "w", encoding="ascii") as handle:
+        handle.write(secrets.token_hex(32) + "\n")
+    print("Created {}. Copy this same file securely to each receiver.".format(path))
+    return 0
+
+
+def validate_message(data):
+    if not isinstance(data, dict):
+        raise ValueError("Message must be a JSON object.")
+    if set(data) - {"title", "message", "urgency", "duration"}:
+        raise ValueError("Unknown message field.")
+    title = data.get("title", "Message")
+    message = data.get("message")
+    urgency = data.get("urgency", "normal")
+    duration = data.get("duration", 8)
+    for name, value, limit in (("title", title, 200), ("message", message, 4000)):
+        if not isinstance(value, str) or not value.strip() or len(value) > limit:
+            raise ValueError("{} must contain 1-{} characters.".format(name, limit))
+        if any(ord(char) < 32 and char not in "\n\t" for char in value):
+            raise ValueError("{} contains an unsupported control character.".format(name))
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("{} contains invalid Unicode.".format(name)) from None
+    if urgency not in ("low", "normal", "critical"):
+        raise ValueError("Urgency must be low, normal, or critical.")
+    if type(duration) is not int or not 1 <= duration <= 300:
+        raise ValueError("Duration must be an integer from 1 to 300 seconds.")
+    return {"title": title, "message": message, "urgency": urgency, "duration": duration}
+
+
+def show_popup(data):
+    # An argument list, '--', and escaped body markup keep received text literal.
+    subprocess.run(
+        ["notify-send", "--app-name=notify", "--icon=dialog-information",
+         "--urgency=" + data["urgency"],
+         "--expire-time=" + str(data["duration"] * 1000), "--",
+         data["title"], html.escape(data["message"], quote=False)],
+        check=True, capture_output=True, timeout=IO_TIMEOUT,
+    )
+
+
+def signature(key, timestamp, nonce, body):
+    prefix = "POST\n/notify\n{}\n{}\n".format(timestamp, nonce).encode("ascii")
+    return hmac.new(key, prefix + body, hashlib.sha256).hexdigest()
+
+
+def signed_headers(key, body):
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_hex(16)
+    return {
+        "Content-Type": "application/json",
+        "X-Notify-Timestamp": timestamp,
+        "X-Notify-Nonce": nonce,
+        "X-Notify-Signature": signature(key, timestamp, nonce, body),
+    }
+
+
+class NotifyServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, address, key, popup=show_popup):
+        self.key = key
+        self.popup = popup
+        self.nonces = {}
+        self.auth_lock = threading.Lock()
+        self.slots = threading.BoundedSemaphore(8)
+        super().__init__(address, NotifyHandler)
+
+    def get_request(self):
+        connection, address = super().get_request()
+        connection.settimeout(IO_TIMEOUT)
+        return connection, address
+
+    def process_request(self, request, client_address):
+        if not self.slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self.slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.slots.release()
+
+    def authenticate(self, headers, body):
+        timestamp = headers.get("X-Notify-Timestamp", "")
+        nonce = headers.get("X-Notify-Nonce", "")
+        digest = headers.get("X-Notify-Signature", "")
+        if not (re.fullmatch(r"[0-9]{1,12}", timestamp)
+                and re.fullmatch(r"[0-9a-f]{32}", nonce)
+                and re.fullmatch(r"[0-9a-f]{64}", digest)):
+            return False
+        now = time.time()
+        if abs(now - int(timestamp)) > CLOCK_WINDOW:
+            return False
+        if not hmac.compare_digest(digest, signature(self.key, timestamp, nonce, body)):
+            return False
+        with self.auth_lock:
+            self.nonces = {n: expiry for n, expiry in self.nonces.items() if expiry >= now}
+            if nonce in self.nonces or len(self.nonces) >= 4096:
+                return False
+            self.nonces[nonce] = int(timestamp) + CLOCK_WINDOW
+        return True
+
+
+class NotifyHandler(BaseHTTPRequestHandler):
+    server_version = "notify/1.0"
+    sys_version = ""
+
+    def log_message(self, format_string, *args):
+        # Do not log received text, keys, or client-controlled headers.
+        pass
+
+    def reply(self, status, message):
+        body = json.dumps({"ok": status == 200, "message": message}).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        self.close_connection = True
+
+    def do_POST(self):
+        try:
+            self.receive()
+        except (OSError, TimeoutError):
+            # Disconnected and slow clients must not crash the listener.
+            self.close_connection = True
+
+    def receive(self):
+        if self.path != "/notify":
+            self.reply(404, "Unknown endpoint.")
+            return
+        lengths = self.headers.get_all("Content-Length", [])
+        if self.headers.get("Transfer-Encoding") or len(lengths) != 1 or not re.fullmatch(r"[0-9]{1,8}", lengths[0]):
+            self.reply(400, "A single Content-Length is required; chunked requests are unsupported.")
+            return
+        length = int(lengths[0])
+        if not 0 < length <= MAX_BODY:
+            self.reply(413, "Message body is too large or empty.")
+            return
+        if self.headers.get_content_type() != "application/json":
+            self.reply(415, "Content-Type must be application/json.")
+            return
+        body = self.rfile.read(length)
+        if len(body) != length:
+            self.reply(400, "Incomplete message body.")
+            return
+        if not self.server.authenticate(self.headers, body):
+            self.reply(401, "Authentication failed. Check the shared key and both machines' clocks.")
+            return
+        try:
+            data = validate_message(json.loads(body.decode("utf-8")))
+        except (ValueError, RecursionError):
+            self.reply(400, "Invalid message. Check the title, message, urgency, and duration.")
+            return
+        try:
+            self.server.popup(data)
+        except (OSError, subprocess.SubprocessError):
+            self.reply(503, "Desktop notification failed. Run the receiver inside a logged-in Linux desktop with notify-send installed.")
+            return
+        self.reply(200, "Accepted by desktop notification service.")
+
+
+def desktop_available():
+    if not sys.platform.startswith("linux"):
+        raise ValueError("Receiving pop-ups requires a Linux desktop. Sending works on other platforms too.")
+    if not shutil.which("notify-send"):
+        raise ValueError("notify-send is missing. Install libnotify-bin (Debian/Ubuntu) or libnotify (Fedora/Arch).")
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        raise ValueError("No desktop session found. Run this as the logged-in user from a desktop terminal.")
+
+
+def listen(args):
+    key = read_key(args.key_file)
+    desktop_available()
+    with NotifyServer((args.host, args.port), key) as server:
+        print("notify listening on {}:{}; Ctrl+C to stop.".format(*server.server_address), flush=True)
+        print("Run 'notify send HOST \"Hello\"' from a machine with the same key.", flush=True)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\nnotify stopped.")
+    return 0
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def target_url(target):
+    parsed = urlsplit(target if "://" in target else "http://" + target)
+    if (parsed.scheme not in ("http", "https") or not parsed.hostname
+            or parsed.username is not None or parsed.password is not None
+            or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+        raise ValueError("Target must be a hostname or http(s)://host[:port], without a path.")
+    port = parsed.port if parsed.port is not None else PORT
+    if not 1 <= port <= 65535:
+        raise ValueError("Target port must be between 1 and 65535.")
+    host = "[{}]".format(parsed.hostname) if ":" in parsed.hostname else parsed.hostname
+    return "{}://{}:{}/notify".format(parsed.scheme, host, port)
+
+
+def send(args):
+    key = read_key(args.key_file)
+    data = validate_message({"title": args.title, "message": args.message,
+                             "urgency": args.urgency, "duration": args.duration})
+    body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+    # Direct LAN connections; do not send messages through ambient HTTP proxies.
+    opener = build_opener(ProxyHandler({}), NoRedirect())
+    failed = False
+    for target in [args.target] + args.also:
+        try:
+            request = Request(target_url(target), data=body, headers=signed_headers(key, body), method="POST")
+            with opener.open(request, timeout=IO_TIMEOUT + 2) as response:
+                reply = json.loads(response.read(MAX_BODY).decode("utf-8"))
+                if response.status != 200 or not isinstance(reply, dict) or reply.get("ok") is not True:
+                    raise ValueError("Receiver did not accept the notification.")
+            print("{}: sent".format(target))
+        except HTTPError as exc:
+            details = {401: "key mismatch, clock difference, or replayed request",
+                       503: "receiver's desktop notification service is unavailable"}
+            print("{}: HTTP {} ({})".format(target, exc.code, details.get(exc.code, "request rejected")), file=sys.stderr)
+            failed = True
+        except (OSError, URLError, HTTPException, ValueError) as exc:
+            print("{}: {}".format(target, exc), file=sys.stderr)
+            failed = True
+    return 1 if failed else 0
+
+
+def desktop_quote(value):
+    # Desktop Entry Exec quoting has two layers: general escaping and argument escaping.
+    value = str(value).replace("%", "%%")
+    value = re.sub(r'([\\"`$])', r'\\\1', value)
+    value = value.replace("\\", "\\\\").replace("\n", r"\n").replace("\r", r"\r")
+    return '"' + value + '"'
+
+
+def autostart(args):
+    if not sys.platform.startswith("linux"):
+        raise ValueError("Desktop autostart requires Linux.")
+    path = config_dir() / "autostart" / "notify.desktop"
+    if args.disable:
+        if path.exists():
+            path.unlink()
+        print("Autostart disabled. Stop any running receiver with Ctrl+C or log out.")
+        return 0
+    read_key(args.key_file)
+    script = Path(__file__).resolve()
+    key = Path(args.key_file).expanduser().resolve()
+    command = " ".join(desktop_quote(arg) for arg in
+                       (sys.executable, script, "listen", "--key-file", key,
+                        "--host", args.host, "--port", str(args.port)))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("[Desktop Entry]\nType=Application\nName=notify\n"
+                    "Comment=Receive desktop messages from trusted senders\n"
+                    "Exec=" + command + "\nTerminal=false\n", encoding="utf-8")
+    print("Enabled desktop login autostart: {}".format(path))
+    print("It starts at your next desktop login. To start now, run 'notify listen'.")
+    return 0
+
+
+def port_number(value):
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("port must be between 1 and 65535")
+    return port
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="notify", description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    key_parser = commands.add_parser("keygen", help="create a shared key (once, then copy it)")
+    key_parser.set_defaults(func=keygen)
+    listen_parser = commands.add_parser("listen", help="receive messages on this Linux desktop")
+    listen_parser.set_defaults(func=listen)
+    send_parser = commands.add_parser("send", help="send a pop-up message")
+    send_parser.add_argument("target", help="receiver hostname or IP, optionally with :port")
+    send_parser.add_argument("message", help="message text (put it in quotes)")
+    send_parser.add_argument("--also", action="append", default=[], metavar="HOST", help="another receiver; repeat for multiple machines")
+    send_parser.add_argument("--title", default="Message")
+    send_parser.add_argument("--urgency", choices=("low", "normal", "critical"), default="normal")
+    send_parser.add_argument("--duration", type=int, default=8, metavar="SECONDS", help="requested popup duration, 1-300 (default: 8)")
+    send_parser.set_defaults(func=send)
+    start_parser = commands.add_parser("autostart", help="enable the receiver at desktop login")
+    start_parser.add_argument("--disable", action="store_true", help="remove the login autostart entry")
+    start_parser.set_defaults(func=autostart)
+    for command in (key_parser, listen_parser, send_parser, start_parser):
+        command.add_argument("--key-file", type=Path, default=default_key(), help="shared key file (default: %(default)s)")
+    for command in (listen_parser, start_parser):
+        command.add_argument("--host", default="0.0.0.0", help="IPv4 bind address (default: all interfaces)")
+        command.add_argument("--port", type=port_number, default=PORT)
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except (OSError, ValueError) as exc:
+        print("notify: {}".format(exc), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
