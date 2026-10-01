@@ -21,6 +21,7 @@
           - automake
           - libtool
           - gettext
+          - autopoint
           - pkg-config
           - libncurses-dev
         state: present
@@ -42,9 +43,15 @@
         extra_opts:
           - --strip-components=1
 
-    - name: Run configure script
+    - name: Bootstrap procps-ng build scripts
       ansible.builtin.command:
-        cmd: ./configure --prefix=/usr/local
+        cmd: ./autogen.sh
+        chdir: "{{ build_dir }}"
+      changed_when: true
+
+    - name: Configure procps-ng to replace system binaries
+      ansible.builtin.command:
+        cmd: ./configure --prefix=/usr
         chdir: "{{ build_dir }}"
       register: configure_result
       changed_when: "'creating Makefile' in configure_result.stdout"
