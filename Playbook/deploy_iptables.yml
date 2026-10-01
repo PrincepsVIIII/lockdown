@@ -5,7 +5,7 @@
   vars:
     frontend: "legacy"  # Options: 'legacy' or 'nft'
     princeps_ip: "192.168.13.104"
-    tarball_path: "../iptables-ubuntu.tar.gz"
+    tarball_path: "{{ playbook_dir }}/../iptables-1.8.10/iptables-1.8.10/iptables-ubuntu.tar.gz"
 
     # Define binary mapping based on frontend selection
     bin_map:
