@@ -44,14 +44,26 @@
         extra_opts:
           - --strip-components=1
 
-    - name: Restore executable permissions on bootstrap scripts
+    - name: Find scripts in the extracted source tree
+      ansible.builtin.find:
+        paths: "{{ build_dir }}"
+        recurse: true
+        hidden: true
+        file_type: file
+        follow: false
+        contains: '^#!'
+        read_whole_file: true
+        encoding: latin-1
+      register: procps_scripts
+
+    - name: Restore executable permissions on source scripts
       ansible.builtin.file:
-        path: "{{ build_dir }}/{{ item }}"
+        path: "{{ item.path }}"
         state: file
-        mode: '0755'
-      loop:
-        - autogen.sh
-        - po/update-potfiles
+        mode: 'u+x'
+      loop: "{{ procps_scripts.files }}"
+      loop_control:
+        label: "{{ item.path }}"
 
     - name: Bootstrap procps-ng build scripts
       ansible.builtin.command:
