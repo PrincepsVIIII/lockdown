@@ -90,11 +90,7 @@
         source: "{{ princeps_ip }}"
         jump: ACCEPT
         ctstate: []
-        # Appends custom flag via raw parameter if not natively supported by module
         ip_version: ipv4
-      args:
-        # Passes custom extension module syntax to iptables
-        tcp_flags: {}
       tags: rules
 
     - name: Apply raw custom princeps rules via command (for custom match extensions)
