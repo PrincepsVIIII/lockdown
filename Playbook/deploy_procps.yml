@@ -45,13 +45,13 @@
 
     - name: Bootstrap procps-ng build scripts
       ansible.builtin.command:
-        cmd: ./autogen.sh
+        cmd: /bin/sh ./autogen.sh
         chdir: "{{ build_dir }}"
       changed_when: true
 
     - name: Configure procps-ng to replace system binaries
       ansible.builtin.command:
-        cmd: ./configure --prefix=/usr
+        cmd: /bin/sh ./configure --prefix=/usr
         chdir: "{{ build_dir }}"
       register: configure_result
       changed_when: "'creating Makefile' in configure_result.stdout"
