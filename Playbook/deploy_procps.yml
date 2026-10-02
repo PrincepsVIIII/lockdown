@@ -18,6 +18,7 @@
       ansible.builtin.apt:
         name:
           - build-essential
+          - dpkg-dev
           - autoconf
           - automake
           - libtool
@@ -27,6 +28,28 @@
           - libncurses-dev
         state: present
         update_cache: true
+
+    - name: Detect target multiarch library directory name
+      ansible.builtin.command:
+        argv:
+          - dpkg-architecture
+          - -qDEB_HOST_MULTIARCH
+      register: procps_multiarch
+      changed_when: false
+
+    - name: Resolve Ubuntu runtime library directory
+      ansible.builtin.command:
+        argv:
+          - readlink
+          - -e
+          - "/lib/{{ procps_multiarch.stdout | trim }}"
+      register: procps_library_dir
+      changed_when: false
+
+    - name: Remove any previous build directory
+      ansible.builtin.file:
+        path: "{{ build_dir }}"
+        state: absent
 
     - name: Ensure staging directory exists
       ansible.builtin.file:
@@ -73,10 +96,20 @@
 
     - name: Configure procps-ng to replace system binaries
       ansible.builtin.command:
-        cmd: /bin/sh ./configure --prefix=/usr
+        argv:
+          - /bin/sh
+          - ./configure
+          - --prefix=/usr
+          # Resolve /lib's multiarch directory for both merged and unmerged /usr.
+          - "--libdir={{ procps_library_dir.stdout | trim }}"
         chdir: "{{ build_dir }}"
       register: configure_result
       changed_when: "'creating Makefile' in configure_result.stdout"
+
+    - name: Remove build artifacts included in the tarball
+      community.general.make:
+        chdir: "{{ build_dir }}"
+        target: clean
 
     - name: Compile procps-ng
       community.general.make:
@@ -91,6 +124,13 @@
     - name: Refresh shared library bindings
       ansible.builtin.command:
         cmd: ldconfig
+      changed_when: false
+
+    - name: Verify installed ps can enumerate processes
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/ps
+          - aux
       changed_when: false
 
     - name: Clean up temporary extraction directory
