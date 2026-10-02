@@ -19,8 +19,11 @@ Select the configuration explicitly: Ansible ignores an automatically discovered
 `ansible.cfg` when the working directory is writable by everyone, which can
 happen in Windows/WSL checkouts. This configuration selects `inventory.ini`.
 
-This installs `/usr/local/bin/notify` and its dependencies and configures startup
-at graphical login. No keys are required by default. The default
+This installs a **receive-only** `/usr/local/bin/notify` and its dependencies and
+configures startup at graphical login. Deployed copies support only `listen` and
+`autostart`; `send`, `all`, and `keygen` are unavailable, and sender code is not
+included. The controller keeps the full `Notify/notify` program for sending.
+No keys are required by default. The default
 desktop user is the inventory's `ansible_user` (`sysadmin` in this inventory).
 If another account logs into the desktop, specify it:
 
@@ -40,6 +43,10 @@ the full command if you selected a custom key path, host, or port. If updating a
 already running receiver, restart it or log out/in to load the new program,
 settings, or key. Do not run two listeners on the same address and port.
 
+To update machines deployed with the old full program, rerun this playbook with
+the same host selection and authentication settings. It replaces the installed
+executable with the receiver-only build; restart existing listeners or log out/in.
+
 ## Sending
 
 From the `Playbook` directory on the controller:
@@ -57,6 +64,12 @@ Allow inbound TCP **8765** from the sender's address in the receiving machine's
 firewall. The playbook does not change firewall rules. Use a trusted LAN or VPN;
 without authentication, any machine able to reach the listener can send pop-ups.
 Message contents are not encrypted.
+
+Receive-only deployment limits the installed Notify program, not other programs
+on that machine. To restrict network senders to the controller, configure receiver
+firewalls to allow the notification port only from the controller. Shared-key
+authentication alone does not separate sender and receiver permissions: a user
+who can read a receiver's key can use it with a separate client to send messages.
 
 ## Optional shared key
 

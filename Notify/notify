@@ -42,7 +42,7 @@ def read_key(path):
         with Path(path).expanduser().open("r", encoding="ascii") as handle:
             value = handle.read(1024).strip()
     except FileNotFoundError:
-        raise ValueError("Key file not found. Run 'notify keygen' and copy that key to each receiver.") from None
+        raise ValueError("Key file not found. Generate it on the sender with 'notify keygen' and copy it to each receiver.") from None
     if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError("Key file must contain the 64 hexadecimal characters produced by 'notify keygen'.")
     return bytes.fromhex(value)
@@ -243,7 +243,7 @@ def listen(args):
     desktop_available()
     with NotifyServer((args.host, args.port), key) as server:
         print("notify listening on {}:{}; Ctrl+C to stop.".format(*server.server_address), flush=True)
-        print("Run 'notify send HOST \"Hello\"'{}.".format(
+        print("On the sender, run 'notify send HOST \"Hello\"'{}.".format(
             " from a machine with the same key" if key is not None else ""), flush=True)
         try:
             server.serve_forever()
@@ -396,6 +396,26 @@ def worker_count(value):
     if not 1 <= workers <= 64:
         raise argparse.ArgumentTypeError("workers must be between 1 and 64")
     return workers
+
+
+def receiver_main(argv=None):
+    parser = argparse.ArgumentParser(prog="notify", description="Receive desktop notifications only; send messages from the controller.")
+    commands = parser.add_subparsers(dest="command", required=True)
+    listen_parser = commands.add_parser("listen", help="receive messages on this Linux desktop")
+    listen_parser.set_defaults(func=listen)
+    start_parser = commands.add_parser("autostart", help="enable the receiver at desktop login")
+    start_parser.add_argument("--disable", action="store_true", help="remove the login autostart entry")
+    start_parser.set_defaults(func=autostart)
+    for command in (listen_parser, start_parser):
+        command.add_argument("--key-file", type=Path, help="enable optional shared-key authentication using this file")
+        command.add_argument("--host", default="0.0.0.0", help="IPv4 bind address (default: all interfaces)")
+        command.add_argument("--port", type=port_number, default=PORT)
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except (OSError, ValueError) as exc:
+        print("notify: {}".format(exc), file=sys.stderr)
+        return 1
 
 
 def main(argv=None):

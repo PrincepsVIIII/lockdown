@@ -10,6 +10,20 @@ using `python notify ...`.
 To deploy to multiple machines with Ansible, use
 [`Playbook/deploy_notify.yml`](../Playbook/deploy_notify.yml); see the
 [deployment instructions](../Playbook/NOTIFY.md).
+The playbook installs a standalone **receive-only** copy on targets, supporting
+only `listen` and `autostart`. Send messages using this full program on the
+controller; deployed targets have no `send`, `all`, or `keygen` commands.
+
+For a manual receive-only installation, build that executable on the controller:
+
+```sh
+python3 build_receiver.py > notify-receiver
+```
+
+Copy `notify-receiver` to the target and install it as `notify` instead of the
+full program below. The build reuses the receiver code without including the
+sender. It limits the installed commands; restrict inbound access on receivers
+to the controller if only that machine should be allowed to send notifications.
 
 Requires Python 3.8+ and `notify-send` on receivers. For Debian/Ubuntu:
 

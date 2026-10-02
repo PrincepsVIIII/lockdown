@@ -104,6 +104,18 @@
           no_log: true
 
   tasks:
+    - name: Build the standalone receiver on the controller
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ playbook_dir }}/../Notify/build_receiver.py"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      check_mode: false
+      changed_when: false
+      register: notify_receiver_build
+
     - name: Install dependencies on Debian and Ubuntu
       ansible.builtin.apt:
         name: "{{ notify_packages[ansible_facts.os_family] }}"
@@ -126,9 +138,9 @@
         group: root
         mode: '0755'
 
-    - name: Install the notify executable
+    - name: Install the receive-only notify executable
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../Notify/notify"
+        content: "{{ notify_receiver_build.stdout }}\n"
         dest: /usr/local/bin/notify
         owner: root
         group: root
@@ -189,7 +201,7 @@
       ansible.builtin.debug:
         msg:
           - >-
-            notify is installed for {{ notify_user }} on {{ inventory_hostname }}.
+            Receive-only notify is installed for {{ notify_user }} on {{ inventory_hostname }}.
             Desktop login autostart: {{ notify_autostart | bool }}.
           - >-
             {{ 'The listener starts at the next graphical login.' if notify_autostart | bool
