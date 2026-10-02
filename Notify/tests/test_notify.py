@@ -197,12 +197,16 @@ class LocalTests(unittest.TestCase):
     def test_popup_is_literal_and_never_runs_a_shell(self):
         data = {"title": "--help", "message": '<b>Hello</b> & $(touch /tmp/nope) "text"',
                 "urgency": "normal", "duration": 8}
-        with mock.patch.object(notify.subprocess, "run") as run:
+        environment = {"DISPLAY": ":99"}
+        with mock.patch.object(notify, "desktop_environment", return_value=environment), \
+                mock.patch.object(notify, "desktop_available"), \
+                mock.patch.object(notify.subprocess, "run") as run:
             notify.show_popup(data)
         argv = run.call_args.args[0]
         self.assertEqual(argv[-3:], ["--", "--help", '&lt;b&gt;Hello&lt;/b&gt; &amp; $(touch /tmp/nope) "text"'])
         self.assertNotIn("shell", run.call_args.kwargs)
         self.assertTrue(run.call_args.kwargs["check"])
+        self.assertEqual(run.call_args.kwargs["env"], environment)
 
     def test_keygen_does_not_overwrite_and_uses_private_permissions(self):
         with tempfile.TemporaryDirectory() as directory:

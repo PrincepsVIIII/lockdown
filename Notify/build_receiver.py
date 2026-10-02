@@ -9,7 +9,7 @@ import sys
 RECEIVER_NAMES = {
     "PORT", "MAX_BODY", "CLOCK_WINDOW", "IO_TIMEOUT",
     "config_dir", "read_key", "validate_message", "show_popup", "signature",
-    "NotifyServer", "NotifyHandler", "desktop_available", "listen",
+    "NotifyServer", "NotifyHandler", "receiver_available", "desktop_available", "listen",
     "desktop_environment", "listener_reachable", "background_listen",
     "desktop_quote", "autostart", "port_number", "receiver_main",
 }

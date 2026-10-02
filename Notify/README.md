@@ -62,10 +62,19 @@ No keys or key generation are required.
 Use `--host 192.168.1.20` to bind one interface or `--port 9000` to change the port.
 If the receiver has a firewall, allow that port from your sender's IP.
 
-The receiver needs a graphical session with a notification service, such as
-GNOME, KDE Plasma, or a window manager running a notification daemon. Start it as
-the logged-in desktop user, without `sudo`. A headless server or a plain SSH
-session does not provide a desktop to show the pop-ups on.
+The listener can start before graphical login. Run `notify listen --background`
+as the intended desktop user over SSH or in a desktop terminal, without `sudo`.
+For each incoming message it looks up that user's current desktop environment
+through their systemd user manager, so a listener started before login can show
+pop-ups after login without restarting. It refreshes the session for later
+messages, including after logout and a subsequent login.
+
+Displaying pop-ups requires a graphical session with a notification service, such
+as GNOME, KDE Plasma, or a window manager running a notification daemon.
+Messages received without an available desktop return a delivery failure (HTTP
+503); they are not queued. Session discovery requires the desktop to publish its
+display environment to the systemd user manager. On non-systemd desktops, start
+the listener inside the user's graphical desktop.
 
 ## Send messages
 
@@ -207,17 +216,18 @@ An empty result means nothing is listening on that TCP port. A listener at
 port if you changed it. Ping checks ICMP reachability, not the notification port;
 a refused TCP connection usually means no listener or a firewall rejecting it.
 
-If deployment could not detect the user's desktop, startup waits for the next
-graphical login. To start immediately,
-run this in the receiving user's Linux desktop terminal, without `sudo`:
+The deployed listener can run before desktop login. If the sender reports HTTP
+503, log into the configured receiving user's graphical desktop and try again.
+To start a listener manually, run as that user over SSH or in a desktop terminal,
+without `sudo`:
 
 ```sh
-notify listen
+notify listen --background
 ```
 
 If deployed with authentication, use
-`notify listen --key-file ~/.config/notify/key` instead (or your custom key path).
-Leave the terminal running. The command prints startup errors directly. To check
+`notify listen --background --key-file ~/.config/notify/key` instead (or your custom key path).
+The command prints startup errors directly. To check
 the deployment's saved user, bind address, port, and key path, inspect the desktop
 login entry as the configured receiving user:
 
@@ -226,11 +236,10 @@ cat ~/.config/autostart/notify.desktop
 ```
 
 Use the configured `notify_config_home` path if you changed that directory.
-For background operation, use `notify listen --background` and inspect
-`~/.config/notify/receiver.log` for startup errors. The playbook tries to start
-the receiver immediately using the configured user's desktop session environment;
-if that environment is unavailable, the login entry starts it at the next
-graphical login.
+Inspect `~/.config/notify/receiver.log` for startup errors. The playbook starts
+the receiver immediately; an active desktop is needed only when displaying a
+message. Login autostart reuses a background listener already running on the
+configured port.
 
 Run the automated tests from this folder:
 

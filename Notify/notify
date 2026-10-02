@@ -89,13 +89,15 @@ def validate_message(data):
 
 
 def show_popup(data):
+    environment = desktop_environment()
+    desktop_available(environment)
     # An argument list, '--', and escaped body markup keep received text literal.
     subprocess.run(
         ["notify-send", "--app-name=notify", "--icon=dialog-information",
          "--urgency=" + data["urgency"],
          "--expire-time=" + str(data["duration"] * 1000), "--",
          data["title"], html.escape(data["message"], quote=False)],
-        check=True, capture_output=True, timeout=IO_TIMEOUT,
+        check=True, capture_output=True, timeout=IO_TIMEOUT, env=environment,
     )
 
 
@@ -225,38 +227,43 @@ class NotifyHandler(BaseHTTPRequestHandler):
             return
         try:
             self.server.popup(data)
-        except (OSError, subprocess.SubprocessError):
-            self.reply(503, "Desktop notification failed. Run the receiver inside a logged-in Linux desktop with notify-send installed.")
+        except (OSError, ValueError, subprocess.SubprocessError):
+            self.reply(503, "Desktop notification unavailable. Log into the receiver user's Linux desktop with notify-send installed and try again.")
             return
         self.reply(200, "Accepted by desktop notification service.")
 
 
-def desktop_available(environment=None):
+def receiver_available():
     if not sys.platform.startswith("linux"):
         raise ValueError("Receiving pop-ups requires a Linux desktop. Sending works on other platforms too.")
     if not shutil.which("notify-send"):
         raise ValueError("notify-send is missing. Install libnotify-bin (Debian/Ubuntu) or libnotify (Fedora/Arch).")
+
+
+def desktop_available(environment=None):
+    receiver_available()
     environment = os.environ if environment is None else environment
     if not (environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY")):
         raise ValueError("No desktop session found. Run this as the logged-in user from a desktop terminal.")
 
 
 def desktop_environment():
-    """Use the desktop environment saved by the user's session manager over SSH."""
+    """Resolve the user's current desktop session, including one started after us."""
     environment = os.environ.copy()
-    if environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY"):
-        return environment
     if sys.platform.startswith("linux") and shutil.which("systemctl"):
         runtime = Path("/run/user") / str(os.getuid())
         if (runtime / "bus").exists():
-            environment.setdefault("XDG_RUNTIME_DIR", str(runtime))
-            environment.setdefault("DBUS_SESSION_BUS_ADDRESS", "unix:path=" + str(runtime / "bus"))
+            environment["XDG_RUNTIME_DIR"] = str(runtime)
+            environment["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + str(runtime / "bus")
             try:
                 result = subprocess.run(["systemctl", "--user", "show-environment"],
                                         env=environment, capture_output=True, text=True,
                                         check=True, timeout=IO_TIMEOUT)
             except (OSError, subprocess.SubprocessError):
                 return environment
+            # A successful lookup replaces inherited display settings from an older login.
+            for name in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY"):
+                environment.pop(name, None)
             for line in result.stdout.splitlines():
                 name, separator, value = line.partition("=")
                 if separator and name in {"DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY",
@@ -284,7 +291,7 @@ def background_listen(args):
     if args.if_desktop and not (environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY")):
         print("No active desktop session found; the receiver will start at the next graphical login.")
         return 0
-    desktop_available(environment)
+    receiver_available()
     if args.key_file is not None:
         read_key(args.key_file)
     if listener_reachable(args.host, args.port):
@@ -322,9 +329,10 @@ def listen(args):
     if args.if_desktop:
         raise ValueError("--if-desktop requires --background.")
     key = read_key(args.key_file) if args.key_file is not None else None
-    desktop_available()
+    receiver_available()
     with NotifyServer((args.host, args.port), key) as server:
         print("notify listening on {}:{}; Ctrl+C to stop.".format(*server.server_address), flush=True)
+        print("Pop-ups are delivered when this user's desktop session is available.", flush=True)
         print("On the sender, run 'notify send HOST \"Hello\"'{}.".format(
             " from a machine with the same key" if key is not None else ""), flush=True)
         try:
@@ -453,7 +461,7 @@ def autostart(args):
     if args.key_file is not None:
         read_key(args.key_file)
     script = Path(__file__).resolve()
-    argv = [sys.executable, script, "listen", "--host", args.host, "--port", str(args.port)]
+    argv = [sys.executable, script, "listen", "--background", "--host", args.host, "--port", str(args.port)]
     if args.key_file is not None:
         argv.extend(["--key-file", Path(args.key_file).expanduser().resolve()])
     command = " ".join(desktop_quote(arg) for arg in argv)
@@ -462,7 +470,7 @@ def autostart(args):
                     "Comment=Receive desktop messages\n"
                     "Exec=" + command + "\nTerminal=false\n", encoding="utf-8")
     print("Enabled desktop login autostart: {}".format(path))
-    print("It starts at your next desktop login. To start now, run 'notify listen'.")
+    print("It starts at your next desktop login. To start now, run 'notify listen --background'.")
     return 0
 
 

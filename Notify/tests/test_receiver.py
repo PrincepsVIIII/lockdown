@@ -1,8 +1,10 @@
 import ast
 import contextlib
+from http.client import HTTPConnection
 import importlib.machinery
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import re
@@ -97,6 +99,7 @@ class ReceiverTests(unittest.TestCase):
             text = entry.read_text(encoding="utf-8")
             self.assertIn(str(self.path), text)
             self.assertIn('"listen"', text)
+            self.assertIn('"--background"', text)
             self.assertIn('"--key-file"', text)
             self.assertIn('"9000"', text)
             self.assertEqual(self.receiver.receiver_main(["autostart", "--disable"]), 0)
@@ -106,6 +109,9 @@ class ReceiverTests(unittest.TestCase):
         fake_backend = Path(self.directory.name) / "notify-send"
         fake_backend.write_text('#!/bin/sh\ntouch "$NOTIFY_TEST_POPUP"\n', encoding="utf-8")
         fake_backend.chmod(0o755)
+        fake_manager = Path(self.directory.name) / "systemctl"
+        fake_manager.write_text("#!/bin/sh\nprintf 'DISPLAY=:99\\n'\n", encoding="utf-8")
+        fake_manager.chmod(0o755)
         marker = Path(self.directory.name) / "popup"
         environment = dict(os.environ, DISPLAY=":99", XDG_CONFIG_HOME=str(Path(self.directory.name) / "config"),
                            NOTIFY_TEST_POPUP=str(marker),
@@ -147,9 +153,73 @@ class ReceiverTests(unittest.TestCase):
             spawn.assert_not_called()
         self.assertIn("next graphical login", output.getvalue())
 
+    def test_background_receiver_starts_without_desktop(self):
+        fake_backend = Path(self.directory.name) / "notify-send"
+        fake_backend.write_text('#!/bin/sh\nexit 0\n', encoding="utf-8")
+        fake_backend.chmod(0o755)
+        fake_manager = Path(self.directory.name) / "systemctl"
+        fake_manager.write_text('#!/bin/sh\nexit 0\n', encoding="utf-8")
+        fake_manager.chmod(0o755)
+        environment = dict(os.environ, XDG_CONFIG_HOME=str(Path(self.directory.name) / "config"),
+                           PATH=self.directory.name + os.pathsep + os.environ.get("PATH", ""))
+        for name in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR"):
+            environment.pop(name, None)
+        with socket.socket() as reserved:
+            reserved.bind(("127.0.0.1", 0))
+            port = reserved.getsockname()[1]
+        result = subprocess.run(
+            [sys.executable, str(self.path), "listen", "--background", "--host", "127.0.0.1",
+             "--port", str(port)], env=environment, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        match = re.search(r"PID (\d+)", result.stdout)
+        self.assertIsNotNone(match, result.stdout)
+        pid = int(match[1])
+        try:
+            for _ in range(2):
+                connection = HTTPConnection("127.0.0.1", port, timeout=3)
+                try:
+                    connection.request("POST", "/notify", body=json.dumps({"message": "Before login"}),
+                                       headers={"Content-Type": "application/json"})
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, 503)
+                    response.read()
+                finally:
+                    connection.close()
+        finally:
+            os.kill(pid, signal.SIGTERM)
+
+    def test_receiver_attaches_after_login_and_refreshes_each_session(self):
+        environments = [{}, {"DISPLAY": ":1", "DBUS_SESSION_BUS_ADDRESS": "unix:path=/new/bus"},
+                        {}, {"WAYLAND_DISPLAY": "wayland-1", "DBUS_SESSION_BUS_ADDRESS": "unix:path=/later/bus"}]
+        with mock.patch.object(self.receiver, "desktop_environment", side_effect=environments), \
+                mock.patch.object(self.receiver, "receiver_available"), \
+                mock.patch.object(self.receiver.subprocess, "run") as popup:
+            server = self.receiver.NotifyServer(("127.0.0.1", 0))
+            thread = threading.Thread(target=server.serve_forever,
+                                      kwargs={"poll_interval": 0.01}, daemon=True)
+            thread.start()
+            try:
+                for expected_status in (503, 200, 503, 200):
+                    connection = HTTPConnection(*server.server_address, timeout=3)
+                    try:
+                        connection.request("POST", "/notify", body=json.dumps({"message": "Session test"}),
+                                           headers={"Content-Type": "application/json"})
+                        response = connection.getresponse()
+                        self.assertEqual(response.status, expected_status)
+                        response.read()
+                    finally:
+                        connection.close()
+                self.assertEqual(popup.call_count, 2)
+                self.assertEqual([call.kwargs["env"] for call in popup.call_args_list],
+                                 [environments[1], environments[3]])
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
     def test_background_start_reports_child_failure(self):
         with mock.patch.object(self.receiver, "desktop_environment", return_value={"DISPLAY": ":0"}), \
-                mock.patch.object(self.receiver, "desktop_available"), \
+                mock.patch.object(self.receiver, "receiver_available"), \
                 mock.patch.object(self.receiver, "listener_reachable", return_value=False), \
                 mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(Path(self.directory.name) / "config")}), \
                 mock.patch.object(self.receiver.subprocess, "Popen") as spawn, \
@@ -160,7 +230,8 @@ class ReceiverTests(unittest.TestCase):
         self.assertIn("receiver.log", errors.getvalue())
 
     def test_desktop_environment_uses_session_variables_only(self):
-        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": "/custom/config"}, clear=True), \
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": "/custom/config", "DISPLAY": ":old",
+                                         "DBUS_SESSION_BUS_ADDRESS": "unix:path=/old/bus"}, clear=True), \
                 mock.patch.object(self.receiver.sys, "platform", "linux"), \
                 mock.patch.object(self.receiver.shutil, "which", return_value="/bin/systemctl"), \
                 mock.patch.object(self.receiver.os, "getuid", return_value=1000), \
@@ -173,6 +244,18 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(environment["DBUS_SESSION_BUS_ADDRESS"], "unix:path=/run/user/1000/bus")
         self.assertEqual(environment["XDG_CONFIG_HOME"], "/custom/config")
         self.assertNotIn("UNRELATED", environment)
+
+    def test_desktop_environment_clears_inherited_display_after_logout(self):
+        with mock.patch.dict(os.environ, {"DISPLAY": ":old", "WAYLAND_DISPLAY": "wayland-old",
+                                         "XAUTHORITY": "/old/auth"}, clear=True), \
+                mock.patch.object(self.receiver.sys, "platform", "linux"), \
+                mock.patch.object(self.receiver.shutil, "which", return_value="/bin/systemctl"), \
+                mock.patch.object(self.receiver.Path, "exists", return_value=True), \
+                mock.patch.object(self.receiver.subprocess, "run") as run:
+            run.return_value.stdout = ""
+            environment = self.receiver.desktop_environment()
+        for name in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY"):
+            self.assertNotIn(name, environment)
 
 
 if __name__ == "__main__":

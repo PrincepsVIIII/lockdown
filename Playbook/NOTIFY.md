@@ -20,8 +20,8 @@ Select the configuration explicitly: Ansible ignores an automatically discovered
 happen in Windows/WSL checkouts. This configuration selects `inventory.ini`.
 
 This installs a **receive-only** `/usr/local/bin/notify` and its dependencies and
-configures background startup at graphical login. It also tries to start the
-receiver immediately for an active desktop session. Deployed copies support only `listen` and
+configures background startup at graphical login. It also starts the receiver
+immediately, including before desktop login. Deployed copies support only `listen` and
 `autostart`; `send`, `all`, and `keygen` are unavailable, and sender code is not
 included. The controller keeps the full `Notify/notify` program for sending.
 No keys are required by default. The default
@@ -38,12 +38,18 @@ desktop and notification service can display pop-ups. Add `-K` if sudo requires
 a password that is not already configured in the inventory.
 
 The playbook enables background startup at each graphical login and, by default,
-tries to start a background receiver immediately. Over SSH it reads the
-configured user's desktop environment from their systemd user manager. If no
-desktop environment is available, it reports that startup will happen at the next
-graphical login. No open terminal is required once the background receiver starts.
-To start manually, run `notify listen --background` in the target user's desktop
-terminal. The playbook prints the full command if you selected a custom key path,
+runs `notify listen --background` after deployment to start a receiver
+immediately. Immediate startup is controlled by `notify_start_now` independently
+of `notify_autostart`. Over SSH it reads the
+configured user's current desktop environment from their systemd user manager
+for each incoming message. The listener stays running before login and can deliver
+pop-ups after that user logs into a graphical desktop, without restarting.
+Messages received without an available desktop return a delivery failure (HTTP
+503); they are not queued. Later messages use the current session, including after
+logout and a subsequent login. No open terminal is required once the background
+receiver starts. Login autostart reuses an existing listener on the configured port.
+To start manually, run `notify listen --background` as the target user over SSH or
+in their desktop terminal. The playbook prints the full command if you selected a custom key path,
 host, or port. Startup output is logged to
 `~/.config/notify/receiver.log` on the target (under `notify_config_home` if
 customized). If updating an
@@ -111,7 +117,7 @@ Set these with `-e`, `host_vars`, or `group_vars` as appropriate:
 | `notify_host` | `0.0.0.0` | IPv4 bind address; use `127.0.0.1` for local-only sending. |
 | `notify_port` | `8765` | Receiver TCP port. |
 | `notify_autostart` | `true` | Set `false` to remove the login entry; an existing listener continues until stopped. |
-| `notify_start_now` | `true` | With autostart enabled, also start a background listener if the desktop session environment is available. Set `false` to wait for the next graphical login. |
+| `notify_start_now` | `true` | Start a background listener after deployment, including before desktop login, independently of login autostart. Set `false` to skip immediate startup. |
 | `notify_auth` | `false` | Set `true` to generate/distribute a shared key and require authenticated messages. |
 | `notify_key_file` | Controller's config directory + `/notify/key` | Absolute shared key path on the controller; set once for the whole deployment. |
 | `notify_config_home` | Desktop user's home + `/.config` | Receiver's configuration directory. Set this to the user's actual `XDG_CONFIG_HOME` if customized. |
