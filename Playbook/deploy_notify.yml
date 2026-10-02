@@ -1,5 +1,5 @@
 ---
-# Run from Playbook/: ansible-playbook deploy_notify.yml --limit ubuntu1
+# Run from Playbook/: ANSIBLE_CONFIG=ansible.cfg ansible-playbook deploy_notify.yml --limit ubuntu1
 # Override notify_user if the desktop login differs from the SSH account.
 - name: Deploy notify to Linux desktops
   hosts: linux
@@ -19,6 +19,7 @@
         notify_host: "{{ notify_host | default('0.0.0.0') }}"
         notify_port: "{{ notify_port | default(8765) }}"
         notify_autostart: "{{ notify_autostart | default(true) }}"
+        notify_auth: "{{ notify_auth | default(false) }}"
         # Controller path: the first deployment creates it; later runs reuse it.
         notify_key_file: >-
           {{ notify_key_file | default(
@@ -36,7 +37,7 @@
           - notify_port | string is match('^[0-9]+$')
           - notify_port | int >= 1
           - notify_port | int <= 65535
-          - notify_key_file is match('^/')
+          - not (notify_auth | bool) or notify_key_file is match('^/')
         fail_msg: >-
           Use a Debian/Ubuntu, Red Hat/Fedora, or Arch Linux host, a non-root
           notify_user who logs into its desktop, a valid bind host and port,
@@ -61,6 +62,7 @@
         fail_msg: "notify_user must be an existing non-root desktop account with an absolute home/config path."
 
     - name: Prepare the shared key on the controller
+      when: notify_auth | bool
       delegate_to: localhost
       become: false
       run_once: true
@@ -141,6 +143,7 @@
         # Preserve permissions if the user's configuration directory exists.
 
     - name: Create the private key directory
+      when: notify_auth | bool
       ansible.builtin.file:
         path: "{{ notify_config_home }}/notify"
         state: directory
@@ -149,6 +152,7 @@
         mode: '0700'
 
     - name: Install the same shared key on each receiver
+      when: notify_auth | bool
       ansible.builtin.copy:
         content: "{{ notify_shared_key }}\n"
         dest: "{{ notify_config_home }}/notify/key"
@@ -191,7 +195,8 @@
             {{ 'The listener starts at the next graphical login.' if notify_autostart | bool
                else 'Desktop login autostart is disabled.' }}
             To start now, run this in that user's desktop terminal:
-            /usr/local/bin/notify listen --key-file {{ (notify_config_home + '/notify/key') | quote }}
+            /usr/local/bin/notify listen
+            {{ ('--key-file ' + ((notify_config_home + '/notify/key') | quote)) if notify_auth | bool else '' }}
             --host {{ notify_host | quote }} --port {{ notify_port | int }}
           - >-
             Existing listeners keep their loaded key/settings until restarted.

@@ -163,6 +163,35 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self.popups), 1)
 
+    def test_all_without_keys_skips_failure_deduplicates_and_summarizes(self):
+        self.server.key = None
+        target = "{}:{}".format(self.host, self.port)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "all", "127.0.0.(2,1):{}".format(self.port),
+             "Everyone save your work", "--also", target, "--workers", "1"],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("127.0.0.2", result.stderr)
+        self.assertIn(target + ": sent", result.stdout)
+        self.assertIn("Finished: 1/2 targets accepted the notification; 1 failed.", result.stdout)
+        self.assertEqual(len(self.popups), 1)
+
+    def test_keyless_receiver_accepts_unsigned_message(self):
+        self.server.key = None
+        self.assertEqual(self.request(headers={"Content-Type": "application/json"})[0], 200)
+        self.assertEqual(len(self.popups), 1)
+
+    def test_send_without_keys_reports_success_count(self):
+        self.server.key = None
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "send", "{}:{}".format(self.host, self.port), "Hello"],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Finished: 1/1 targets accepted the notification; 0 failed.", result.stdout)
+        self.assertEqual(len(self.popups), 1)
+
 
 class LocalTests(unittest.TestCase):
     def test_popup_is_literal_and_never_runs_a_shell(self):
@@ -215,6 +244,55 @@ class LocalTests(unittest.TestCase):
         for target in ("", "ftp://host", "http://user:password@host", "host/path", "host?query", "host#fragment", "host:0", "host:65536"):
             with self.subTest(target=target), self.assertRaises(ValueError):
                 notify.target_url(target)
+
+    def test_ipv4_ranges_and_lists(self):
+        cases = (
+            ("10.42.1-13.10", ["10.42.{}.10".format(a) for a in range(1, 14)]),
+            ("10.42.1.(10,20,30,40)", ["10.42.1.{}".format(b) for b in (10, 20, 30, 40)]),
+            ("10.42.1-2.10-11:9000", ["10.42.{}.{}:9000".format(a, b) for a in (1, 2) for b in (10, 11)]),
+            ("https://10.42.(1,3).(10,20):443/", ["https://10.42.{}.{}:443".format(a, b) for a in (1, 3) for b in (10, 20)]),
+            ("10.42.(1, 2-3,2).(0,255)", ["10.42.{}.{}".format(a, b) for a in (1, 2, 3) for b in (0, 255)]),
+            ("office-pc.example.test", ["office-pc.example.test"]),
+            ("[::1]:9000", ["[::1]:9000"]),
+        )
+        for target, expected in cases:
+            with self.subTest(target=target):
+                self.assertEqual(notify.expand_target(target), expected)
+
+    def test_invalid_ranges_are_rejected_before_delivery(self):
+        for target in ("10.42.13-1.10", "10.42.1.10-256", "10.42.1.(-1,2)",
+                       "10.42.1.()", "10.42.1.(1,,2)", "10.42.1.1,2",
+                       "10.42.1.(1,2", "10.42.1.1-2-3", "10-11.42.1.10",
+                       "10.42.(1,2).1:0", "256.42.1-2.10"):
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                notify.expand_target(target)
+        with mock.patch.object(notify, "send_one") as sender, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(notify.main(["all", "10.42.1.10", "Hello", "--also", "10.42.1.10-256"]), 1)
+            sender.assert_not_called()
+
+    def test_overlapping_targets_are_deduplicated(self):
+        self.assertEqual(notify.expand_targets([
+            "10.42.1-2.(10,10,20)", "10.42.2.10", "http://10.42.1.10:8765",
+        ]), ["10.42.1.10", "10.42.1.20", "10.42.2.10", "10.42.2.20"])
+
+    def test_all_uses_concurrent_deliveries_and_counts_failures(self):
+        barrier = threading.Barrier(2)
+        def deliver(target, key, body):
+            self.assertIsNone(key)
+            barrier.wait(timeout=3)
+            return target.endswith("10"), target
+        output = io.StringIO()
+        with mock.patch.object(notify, "send_one", side_effect=deliver), contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(notify.main(["all", "10.42.1.10-11", "Hello", "--workers", "2"]), 1)
+        self.assertIn("Finished: 1/2 targets accepted the notification; 1 failed.", output.getvalue())
+
+    def test_autostart_without_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(notify.sys, "platform", "linux"), mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": directory}), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(notify.main(["autostart"]), 0)
+                entry = (Path(directory) / "autostart" / "notify.desktop").read_text()
+                self.assertIn('"listen"', entry)
+                self.assertNotIn("--key-file", entry)
 
     def test_autostart_enable_and_disable(self):
         with tempfile.TemporaryDirectory() as directory:

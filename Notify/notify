@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Send authenticated pop-up messages to Linux desktops. No pip packages required."""
+"""Send pop-up messages to Linux desktops. No pip packages required."""
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import hmac
 import html
@@ -116,7 +117,7 @@ class NotifyServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, key, popup=show_popup):
+    def __init__(self, address, key=None, popup=show_popup):
         self.key = key
         self.popup = popup
         self.nonces = {}
@@ -146,6 +147,8 @@ class NotifyServer(ThreadingHTTPServer):
             self.slots.release()
 
     def authenticate(self, headers, body):
+        if self.key is None:
+            return True
         timestamp = headers.get("X-Notify-Timestamp", "")
         nonce = headers.get("X-Notify-Nonce", "")
         digest = headers.get("X-Notify-Signature", "")
@@ -236,11 +239,12 @@ def desktop_available():
 
 
 def listen(args):
-    key = read_key(args.key_file)
+    key = read_key(args.key_file) if args.key_file is not None else None
     desktop_available()
     with NotifyServer((args.host, args.port), key) as server:
         print("notify listening on {}:{}; Ctrl+C to stop.".format(*server.server_address), flush=True)
-        print("Run 'notify send HOST \"Hello\"' from a machine with the same key.", flush=True)
+        print("Run 'notify send HOST \"Hello\"'{}.".format(
+            " from a machine with the same key" if key is not None else ""), flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
@@ -266,30 +270,84 @@ def target_url(target):
     return "{}://{}:{}/notify".format(parsed.scheme, host, port)
 
 
+def octet_values(expression):
+    """Expand one IPv4 octet: a number, an inclusive range, or a list."""
+    if expression.startswith("(") and expression.endswith(")"):
+        entries = expression[1:-1].split(",")
+    else:
+        entries = [expression]
+    values = []
+    for entry in entries:
+        match = re.fullmatch(r"([0-9]{1,3})(?:-([0-9]{1,3}))?", entry.strip())
+        if not match:
+            raise ValueError("Invalid IPv4 octet '{}'; use 10, 10-20, or (10,20,30).".format(expression))
+        start = int(match[1])
+        end = int(match[2]) if match[2] is not None else start
+        if not 0 <= start <= end <= 255:
+            raise ValueError("IPv4 octets must be 0-255 and ranges must be ascending: '{}'.".format(expression))
+        values.extend(range(start, end + 1))
+    return list(dict.fromkeys(values))
+
+
+def expand_target(target):
+    """Expand ranges/lists in the third and fourth octets; preserve ports/TLS."""
+    target_url(target)  # Validate the complete target before expanding it.
+    has_scheme = "://" in target
+    parsed = urlsplit(target if has_scheme else "http://" + target)
+    host = parsed.hostname
+    if not re.fullmatch(r"[0-9().,\s-]+", host) or not any(char in host for char in "-(),"):
+        return [target]
+    octets = host.split(".")
+    if len(octets) != 4 or any(not re.fullmatch(r"[0-9]{1,3}", part) for part in octets[:2]):
+        raise ValueError("IPv4 ranges and lists are supported only in the third and fourth octets.")
+    first, second, third, fourth = [octet_values(part) for part in octets]
+    prefix = parsed.scheme + "://" if has_scheme else ""
+    suffix = ":{}".format(parsed.port) if parsed.port is not None else ""
+    return ["{}{}.{}.{}.{}{}".format(prefix, first[0], second[0], a, b, suffix)
+            for a in third for b in fourth]
+
+
+def expand_targets(targets):
+    expanded = {}
+    for target in targets:
+        for host in expand_target(target):
+            expanded.setdefault(target_url(host), host)
+    return list(expanded.values())
+
+
+def send_one(target, key, body):
+    # Direct LAN connections; do not send messages through ambient HTTP proxies.
+    opener = build_opener(ProxyHandler({}), NoRedirect())
+    try:
+        headers = signed_headers(key, body) if key is not None else {"Content-Type": "application/json"}
+        request = Request(target_url(target), data=body, headers=headers, method="POST")
+        with opener.open(request, timeout=IO_TIMEOUT + 2) as response:
+            reply = json.loads(response.read(MAX_BODY).decode("utf-8"))
+            if response.status != 200 or not isinstance(reply, dict) or reply.get("ok") is not True:
+                raise ValueError("Receiver did not accept the notification.")
+        return True, "{}: sent".format(target)
+    except HTTPError as exc:
+        details = {401: "key mismatch, clock difference, or replayed request",
+                   503: "receiver's desktop notification service is unavailable"}
+        return False, "{}: HTTP {} ({})".format(target, exc.code, details.get(exc.code, "request rejected"))
+    except (OSError, URLError, HTTPException, ValueError, RecursionError) as exc:
+        return False, "{}: {}".format(target, exc)
+
+
 def send(args):
-    key = read_key(args.key_file)
+    key = read_key(args.key_file) if args.key_file is not None else None
     data = validate_message({"title": args.title, "message": args.message,
                              "urgency": args.urgency, "duration": args.duration})
     body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-    # Direct LAN connections; do not send messages through ambient HTTP proxies.
-    opener = build_opener(ProxyHandler({}), NoRedirect())
-    failed = False
-    for target in [args.target] + args.also:
-        try:
-            request = Request(target_url(target), data=body, headers=signed_headers(key, body), method="POST")
-            with opener.open(request, timeout=IO_TIMEOUT + 2) as response:
-                reply = json.loads(response.read(MAX_BODY).decode("utf-8"))
-                if response.status != 200 or not isinstance(reply, dict) or reply.get("ok") is not True:
-                    raise ValueError("Receiver did not accept the notification.")
-            print("{}: sent".format(target))
-        except HTTPError as exc:
-            details = {401: "key mismatch, clock difference, or replayed request",
-                       503: "receiver's desktop notification service is unavailable"}
-            print("{}: HTTP {} ({})".format(target, exc.code, details.get(exc.code, "request rejected")), file=sys.stderr)
-            failed = True
-        except (OSError, URLError, HTTPException, ValueError) as exc:
-            print("{}: {}".format(target, exc), file=sys.stderr)
-            failed = True
+    targets = expand_targets([args.target] + args.also)
+    delivered = 0
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        for ok, report in executor.map(lambda target: send_one(target, key, body), targets):
+            print(report, file=sys.stdout if ok else sys.stderr, flush=True)
+            delivered += int(ok)
+    failed = len(targets) - delivered
+    print("Finished: {}/{} targets accepted the notification; {} failed.".format(
+        delivered, len(targets), failed), flush=True)
     return 1 if failed else 0
 
 
@@ -310,15 +368,16 @@ def autostart(args):
             path.unlink()
         print("Autostart disabled. Stop any running receiver with Ctrl+C or log out.")
         return 0
-    read_key(args.key_file)
+    if args.key_file is not None:
+        read_key(args.key_file)
     script = Path(__file__).resolve()
-    key = Path(args.key_file).expanduser().resolve()
-    command = " ".join(desktop_quote(arg) for arg in
-                       (sys.executable, script, "listen", "--key-file", key,
-                        "--host", args.host, "--port", str(args.port)))
+    argv = [sys.executable, script, "listen", "--host", args.host, "--port", str(args.port)]
+    if args.key_file is not None:
+        argv.extend(["--key-file", Path(args.key_file).expanduser().resolve()])
+    command = " ".join(desktop_quote(arg) for arg in argv)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("[Desktop Entry]\nType=Application\nName=notify\n"
-                    "Comment=Receive desktop messages from trusted senders\n"
+                    "Comment=Receive desktop messages\n"
                     "Exec=" + command + "\nTerminal=false\n", encoding="utf-8")
     print("Enabled desktop login autostart: {}".format(path))
     print("It starts at your next desktop login. To start now, run 'notify listen'.")
@@ -332,6 +391,13 @@ def port_number(value):
     return port
 
 
+def worker_count(value):
+    workers = int(value)
+    if not 1 <= workers <= 64:
+        raise argparse.ArgumentTypeError("workers must be between 1 and 64")
+    return workers
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="notify", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -340,18 +406,22 @@ def main(argv=None):
     listen_parser = commands.add_parser("listen", help="receive messages on this Linux desktop")
     listen_parser.set_defaults(func=listen)
     send_parser = commands.add_parser("send", help="send a pop-up message")
-    send_parser.add_argument("target", help="receiver hostname or IP, optionally with :port")
-    send_parser.add_argument("message", help="message text (put it in quotes)")
-    send_parser.add_argument("--also", action="append", default=[], metavar="HOST", help="another receiver; repeat for multiple machines")
-    send_parser.add_argument("--title", default="Message")
-    send_parser.add_argument("--urgency", choices=("low", "normal", "critical"), default="normal")
-    send_parser.add_argument("--duration", type=int, default=8, metavar="SECONDS", help="requested popup duration, 1-300 (default: 8)")
-    send_parser.set_defaults(func=send)
+    all_parser = commands.add_parser("all", help="notify every address in supplied targets, ranges, or lists")
+    for command, workers in ((send_parser, 1), (all_parser, 16)):
+        command.add_argument("target", help="receiver hostname/IP or IPv4 pattern (e.g. 10.42.1-13.(10,20)), optionally with :port")
+        command.add_argument("message", help="message text (put it in quotes)")
+        command.add_argument("--also", action="append", default=[], metavar="HOST", help="another receiver or IPv4 pattern; repeat for multiple targets")
+        command.add_argument("--title", default="Message")
+        command.add_argument("--urgency", choices=("low", "normal", "critical"), default="normal")
+        command.add_argument("--duration", type=int, default=8, metavar="SECONDS", help="requested popup duration, 1-300 (default: 8)")
+        command.add_argument("--workers", type=worker_count, default=workers, help="concurrent deliveries, 1-64 (default: %(default)s)")
+        command.set_defaults(func=send)
     start_parser = commands.add_parser("autostart", help="enable the receiver at desktop login")
     start_parser.add_argument("--disable", action="store_true", help="remove the login autostart entry")
     start_parser.set_defaults(func=autostart)
-    for command in (key_parser, listen_parser, send_parser, start_parser):
-        command.add_argument("--key-file", type=Path, default=default_key(), help="shared key file (default: %(default)s)")
+    key_parser.add_argument("--key-file", type=Path, default=default_key(), help="key output file (default: %(default)s)")
+    for command in (listen_parser, send_parser, all_parser, start_parser):
+        command.add_argument("--key-file", type=Path, help="enable optional shared-key authentication using this file")
     for command in (listen_parser, start_parser):
         command.add_argument("--host", default="0.0.0.0", help="IPv4 bind address (default: all interfaces)")
         command.add_argument("--port", type=port_number, default=PORT)

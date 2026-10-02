@@ -1,6 +1,6 @@
 # notify
 
-Small, authenticated pop-up messages between machines. Copy the `notify` file to
+Small pop-up messages between machines, with optional authentication. Copy the `notify` file to
 each machine: it is a single Python program with no pip dependencies. Receivers
 show native Linux desktop notifications; the sender also works on Windows/macOS
 using `python notify ...`.
@@ -31,28 +31,6 @@ export PATH="$HOME/.local/bin:$PATH"
 Ensure `~/.local/bin` is on your PATH in future terminals too, or use the full
 `~/.local/bin/notify` path. You can also run `python3 ./notify` without installing.
 
-## Set up the shared key once
-
-On the sending machine:
-
-```sh
-notify keygen
-```
-
-This creates `~/.config/notify/key` with private file permissions. It refuses to
-overwrite an existing key. Copy **this same key** securely to each receiving
-user's `~/.config/notify/key`; do not generate a different key on each receiver.
-For example, using SSH (replace `alice@192.168.1.20` with the receiver):
-
-```sh
-ssh alice@192.168.1.20 'mkdir -p ~/.config/notify && chmod 700 ~/.config/notify'
-scp ~/.config/notify/key alice@192.168.1.20:~/.config/notify/key
-ssh alice@192.168.1.20 'chmod 600 ~/.config/notify/key'
-```
-
-If `XDG_CONFIG_HOME` is set, the default is `$XDG_CONFIG_HOME/notify/key` instead.
-All commands also accept `--key-file /path/to/key` after the subcommand.
-
 ## Start receiving
 
 Open a terminal **inside the receiving user's Linux desktop** and run:
@@ -62,6 +40,7 @@ notify listen
 ```
 
 Leave this running. It listens on TCP port **8765** on all IPv4 interfaces.
+No keys or key generation are required.
 Use `--host 192.168.1.20` to bind one interface or `--port 9000` to change the port.
 If the receiver has a firewall, allow that port from your sender's IP.
 
@@ -85,9 +64,38 @@ notify send 192.168.1.20:9000 "Maintenance starts soon" --duration 15 --urgency 
 `critical`. Titles are limited to 200 characters and messages to 4,000 characters.
 Text is displayed literally, including shell characters and HTML tags.
 
-Each target reports success or failure. Exit status is 0 if all targets accepted
-the message, 1 if any failed. An offline machine fails after a short timeout;
-messages are not queued. Success means the desktop notification service accepted
+## Notify all targets in ranges or lists
+
+```sh
+notify all '10.42.1-13.10' "Please save your work"
+notify all '10.42.1.(10,20,30,40)' "Meeting in five minutes"
+notify all '10.42.1-13.(10,20,30,40)' "Maintenance starts soon" --title Reminder
+notify all '10.42.1-3.10-20:9000' "Hello" --also '10.42.5.(10,30):9000'
+```
+
+Ranges are inclusive. Lists use parentheses and commas; list entries can also
+be ranges, e.g. `(10,20-25,40)`. Both the third and fourth octets support this
+syntax; the first two must be fixed numbers. When both octets contain ranges or
+lists, every combination is targeted: `10.42.1-13.(10,20,30,40)` targets **52**
+addresses. Octets must be 0-255 and ranges must be ascending. Quote patterns,
+especially those containing parentheses, to prevent the shell interpreting them.
+
+`all` sends to the supplied addresses with up to **16** concurrent deliveries.
+It does not discover machines automatically. `send` also accepts patterns and
+defaults to one delivery at a time. Both accept `--workers 1-64`, `--also`, and
+the same title, urgency, duration, and optional key settings. Overlapping targets
+are deduplicated, and all patterns are validated before any messages are sent.
+
+Each target reports success or failure. A failed or offline target is skipped
+and delivery continues to every other target; messages are not queued. At the
+end, both commands print a summary, for example:
+
+```text
+Finished: 48/52 targets accepted the notification; 4 failed.
+```
+
+Exit status is 0 if all targets accepted the message, 1 if any failed.
+Success means the desktop notification service accepted
 the message, not that a person read it. Do Not Disturb, lock-screen settings, and
 desktop notification preferences may suppress the pop-up. Some desktops ignore
 requested durations, including GNOME Shell; see the
@@ -95,7 +103,7 @@ requested durations, including GNOME Shell; see the
 
 ## Optional: start at desktop login
 
-After installing the program and copying the key, run as the receiving user:
+After installing the program, run as the receiving user:
 
 ```sh
 notify autostart
@@ -121,7 +129,31 @@ Delete the shared key on that machine if it is no longer needed.
 ## Network and authentication
 
 Use this on a trusted LAN or through a VPN. The included listener serves HTTP;
-message contents are not encrypted. Each request has an HMAC-SHA256 signature,
+message contents are not encrypted. By default, no key is required, so any
+machine able to reach the listener can send a notification.
+
+To opt into authentication, generate a key once on the sender:
+
+```sh
+notify keygen
+```
+
+This creates `~/.config/notify/key` with private file permissions and refuses to
+overwrite an existing file. If `XDG_CONFIG_HOME` is set, the default location is
+`$XDG_CONFIG_HOME/notify/key`. Copy this same key securely to each receiver,
+then explicitly pass `--key-file` on both ends:
+
+```sh
+notify listen --key-file ~/.config/notify/key
+notify all '10.42.1-13.10' "Hello" --key-file ~/.config/notify/key
+notify autostart --key-file ~/.config/notify/key
+```
+
+Existing key files are ignored unless `--key-file` is supplied. Previously
+installed autostart entries that include `--key-file` keep requiring a key;
+run `notify autostart` again and restart the listener to switch to key-free mode.
+
+With authentication enabled, each request has an HMAC-SHA256 signature,
 a timestamp, and a random nonce: the key is never transmitted, and modified,
 unsigned, and replayed requests are rejected. Keep sender and receiver clocks
 within 60 seconds. Replay protection is held in memory and resets on restart.

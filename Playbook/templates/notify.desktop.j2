@@ -5,6 +5,6 @@
 [Desktop Entry]
 Type=Application
 Name=notify
-Comment=Receive desktop messages from trusted senders
-Exec={{ desktop_arg('/usr/local/bin/notify') }} listen --key-file {{ desktop_arg(notify_config_home + '/notify/key') }} --host {{ desktop_arg(notify_host) }} --port {{ notify_port | int }}
+Comment=Receive desktop messages
+Exec={{ desktop_arg('/usr/local/bin/notify') }} listen{% if notify_auth | bool %} --key-file {{ desktop_arg(notify_config_home + '/notify/key') }}{% endif %} --host {{ desktop_arg(notify_host) }} --port {{ notify_port | int }}
 Terminal=false
