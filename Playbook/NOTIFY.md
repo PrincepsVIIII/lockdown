@@ -20,7 +20,8 @@ Select the configuration explicitly: Ansible ignores an automatically discovered
 happen in Windows/WSL checkouts. This configuration selects `inventory.ini`.
 
 This installs a **receive-only** `/usr/local/bin/notify` and its dependencies and
-configures startup at graphical login. Deployed copies support only `listen` and
+configures background startup at graphical login. It also tries to start the
+receiver immediately for an active desktop session. Deployed copies support only `listen` and
 `autostart`; `send`, `all`, and `keygen` are unavailable, and sender code is not
 included. The controller keeps the full `Notify/notify` program for sending.
 No keys are required by default. The default
@@ -36,10 +37,16 @@ the entire `linux` group, including its server groups. Only hosts with a graphic
 desktop and notification service can display pop-ups. Add `-K` if sudo requires
 a password that is not already configured in the inventory.
 
-The playbook prepares login startup. **The receiver starts at the next graphical
-login**, not immediately from the SSH deployment session. To start immediately,
-run `notify listen` in the target user's desktop terminal. The playbook prints
-the full command if you selected a custom key path, host, or port. If updating an
+The playbook enables background startup at each graphical login and, by default,
+tries to start a background receiver immediately. Over SSH it reads the
+configured user's desktop environment from their systemd user manager. If no
+desktop environment is available, it reports that startup will happen at the next
+graphical login. No open terminal is required once the background receiver starts.
+To start manually, run `notify listen --background` in the target user's desktop
+terminal. The playbook prints the full command if you selected a custom key path,
+host, or port. Startup output is logged to
+`~/.config/notify/receiver.log` on the target (under `notify_config_home` if
+customized). If updating an
 already running receiver, restart it or log out/in to load the new program,
 settings, or key. Do not run two listeners on the same address and port.
 
@@ -53,7 +60,7 @@ From the `Playbook` directory on the controller:
 
 ```sh
 python3 ../Notify/notify send 10.1.1.10 "Hello from Ansible's controller!"
-python3 ../Notify/notify all '10.42.1-13.(10,20,30,40)' "Meeting soon" --title Reminder
+python3 ../Notify/notify all '10.1-13.1.(10,20,30,40)' "Meeting soon" --title Reminder
 ```
 
 Each receiver must be running. Failed targets are skipped and delivery continues;
@@ -87,7 +94,7 @@ From the `Playbook` directory on that controller:
 
 ```sh
 python3 ../Notify/notify send 10.1.1.10 "Hello from Ansible's controller!" --key-file ~/.config/notify/key
-python3 ../Notify/notify all '10.42.1-13.10' "Meeting soon" --key-file ~/.config/notify/key
+python3 ../Notify/notify all '10.1-13.1.10' "Meeting soon" --key-file ~/.config/notify/key
 ```
 
 Senders must explicitly supply `--key-file` with the same shared key; use your
@@ -104,6 +111,7 @@ Set these with `-e`, `host_vars`, or `group_vars` as appropriate:
 | `notify_host` | `0.0.0.0` | IPv4 bind address; use `127.0.0.1` for local-only sending. |
 | `notify_port` | `8765` | Receiver TCP port. |
 | `notify_autostart` | `true` | Set `false` to remove the login entry; an existing listener continues until stopped. |
+| `notify_start_now` | `true` | With autostart enabled, also start a background listener if the desktop session environment is available. Set `false` to wait for the next graphical login. |
 | `notify_auth` | `false` | Set `true` to generate/distribute a shared key and require authenticated messages. |
 | `notify_key_file` | Controller's config directory + `/notify/key` | Absolute shared key path on the controller; set once for the whole deployment. |
 | `notify_config_home` | Desktop user's home + `/.config` | Receiver's configuration directory. Set this to the user's actual `XDG_CONFIG_HOME` if customized. |

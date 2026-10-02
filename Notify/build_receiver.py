@@ -10,11 +10,12 @@ RECEIVER_NAMES = {
     "PORT", "MAX_BODY", "CLOCK_WINDOW", "IO_TIMEOUT",
     "config_dir", "read_key", "validate_message", "show_popup", "signature",
     "NotifyServer", "NotifyHandler", "desktop_available", "listen",
+    "desktop_environment", "listener_reachable", "background_listen",
     "desktop_quote", "autostart", "port_number", "receiver_main",
 }
 RECEIVER_IMPORTS = {
-    "argparse", "hashlib", "hmac", "html", "json", "os", "pathlib", "re",
-    "shutil", "subprocess", "sys", "threading", "time", "http.server",
+    "argparse", "ast", "hashlib", "hmac", "html", "json", "os", "pathlib", "re",
+    "shutil", "socket", "subprocess", "sys", "threading", "time", "http.server",
 }
 
 

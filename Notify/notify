@@ -2,6 +2,7 @@
 """Send pop-up messages to Linux desktops. No pip packages required."""
 
 import argparse
+import ast
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import hmac
@@ -12,6 +13,7 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -229,16 +231,96 @@ class NotifyHandler(BaseHTTPRequestHandler):
         self.reply(200, "Accepted by desktop notification service.")
 
 
-def desktop_available():
+def desktop_available(environment=None):
     if not sys.platform.startswith("linux"):
         raise ValueError("Receiving pop-ups requires a Linux desktop. Sending works on other platforms too.")
     if not shutil.which("notify-send"):
         raise ValueError("notify-send is missing. Install libnotify-bin (Debian/Ubuntu) or libnotify (Fedora/Arch).")
-    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+    environment = os.environ if environment is None else environment
+    if not (environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY")):
         raise ValueError("No desktop session found. Run this as the logged-in user from a desktop terminal.")
 
 
+def desktop_environment():
+    """Use the desktop environment saved by the user's session manager over SSH."""
+    environment = os.environ.copy()
+    if environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY"):
+        return environment
+    if sys.platform.startswith("linux") and shutil.which("systemctl"):
+        runtime = Path("/run/user") / str(os.getuid())
+        if (runtime / "bus").exists():
+            environment.setdefault("XDG_RUNTIME_DIR", str(runtime))
+            environment.setdefault("DBUS_SESSION_BUS_ADDRESS", "unix:path=" + str(runtime / "bus"))
+            try:
+                result = subprocess.run(["systemctl", "--user", "show-environment"],
+                                        env=environment, capture_output=True, text=True,
+                                        check=True, timeout=IO_TIMEOUT)
+            except (OSError, subprocess.SubprocessError):
+                return environment
+            for line in result.stdout.splitlines():
+                name, separator, value = line.partition("=")
+                if separator and name in {"DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY",
+                                          "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"}:
+                    if value.startswith("$'"):
+                        try:
+                            value = ast.literal_eval(value[1:])
+                        except (ValueError, SyntaxError):
+                            continue
+                    environment[name] = value
+    return environment
+
+
+def listener_reachable(host, port):
+    host = "127.0.0.1" if host == "0.0.0.0" else host
+    try:
+        with socket.create_connection((host, port), timeout=0.2):
+            return True
+    except OSError:
+        return False
+
+
+def background_listen(args):
+    environment = desktop_environment()
+    if args.if_desktop and not (environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY")):
+        print("No active desktop session found; the receiver will start at the next graphical login.")
+        return 0
+    desktop_available(environment)
+    if args.key_file is not None:
+        read_key(args.key_file)
+    if listener_reachable(args.host, args.port):
+        print("Port {}:{} already has a listener. Stop any manually started receiver before switching to background mode.".format(args.host, args.port))
+        return 0
+    log_path = config_dir() / "notify" / "receiver.log"
+    log_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    argv = [sys.executable, str(Path(__file__).resolve()), "listen", "--host", args.host,
+            "--port", str(args.port)]
+    if args.key_file is not None:
+        argv.extend(["--key-file", str(Path(args.key_file).expanduser().resolve())])
+    with log_path.open("a", encoding="utf-8") as log:
+        process = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL,
+                                   stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    deadline = time.monotonic() + IO_TIMEOUT
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise ValueError("Receiver failed to start. See {}.".format(log_path))
+        if listener_reachable(args.host, args.port):
+            print("Receiver running in the background (PID {}). Log: {}".format(process.pid, log_path))
+            return 0
+        time.sleep(0.05)
+    process.terminate()
+    try:
+        process.wait(timeout=IO_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+    raise ValueError("Receiver did not start listening. See {}.".format(log_path))
+
+
 def listen(args):
+    if args.background:
+        return background_listen(args)
+    if args.if_desktop:
+        raise ValueError("--if-desktop requires --background.")
     key = read_key(args.key_file) if args.key_file is not None else None
     desktop_available()
     with NotifyServer((args.host, args.port), key) as server:
@@ -290,7 +372,7 @@ def octet_values(expression):
 
 
 def expand_target(target):
-    """Expand ranges/lists in the third and fourth octets; preserve ports/TLS."""
+    """Expand ranges/lists in the second and fourth octets; preserve ports/TLS."""
     target_url(target)  # Validate the complete target before expanding it.
     has_scheme = "://" in target
     parsed = urlsplit(target if has_scheme else "http://" + target)
@@ -298,13 +380,13 @@ def expand_target(target):
     if not re.fullmatch(r"[0-9().,\s-]+", host) or not any(char in host for char in "-(),"):
         return [target]
     octets = host.split(".")
-    if len(octets) != 4 or any(not re.fullmatch(r"[0-9]{1,3}", part) for part in octets[:2]):
-        raise ValueError("IPv4 ranges and lists are supported only in the third and fourth octets.")
+    if len(octets) != 4 or any(not re.fullmatch(r"[0-9]{1,3}", octets[index]) for index in (0, 2)):
+        raise ValueError("IPv4 ranges and lists are supported only in the second and fourth octets.")
     first, second, third, fourth = [octet_values(part) for part in octets]
     prefix = parsed.scheme + "://" if has_scheme else ""
     suffix = ":{}".format(parsed.port) if parsed.port is not None else ""
-    return ["{}{}.{}.{}.{}{}".format(prefix, first[0], second[0], a, b, suffix)
-            for a in third for b in fourth]
+    return ["{}{}.{}.{}.{}{}".format(prefix, first[0], a, third[0], b, suffix)
+            for a in second for b in fourth]
 
 
 def expand_targets(targets):
@@ -402,6 +484,8 @@ def receiver_main(argv=None):
     parser = argparse.ArgumentParser(prog="notify", description="Receive desktop notifications only; send messages from the controller.")
     commands = parser.add_subparsers(dest="command", required=True)
     listen_parser = commands.add_parser("listen", help="receive messages on this Linux desktop")
+    listen_parser.add_argument("--background", action="store_true", help="start a detached receiver and return")
+    listen_parser.add_argument("--if-desktop", action="store_true", help="with --background, wait for login if no desktop is active")
     listen_parser.set_defaults(func=listen)
     start_parser = commands.add_parser("autostart", help="enable the receiver at desktop login")
     start_parser.add_argument("--disable", action="store_true", help="remove the login autostart entry")
@@ -424,11 +508,13 @@ def main(argv=None):
     key_parser = commands.add_parser("keygen", help="create a shared key (once, then copy it)")
     key_parser.set_defaults(func=keygen)
     listen_parser = commands.add_parser("listen", help="receive messages on this Linux desktop")
+    listen_parser.add_argument("--background", action="store_true", help="start a detached receiver and return")
+    listen_parser.add_argument("--if-desktop", action="store_true", help="with --background, wait for login if no desktop is active")
     listen_parser.set_defaults(func=listen)
     send_parser = commands.add_parser("send", help="send a pop-up message")
     all_parser = commands.add_parser("all", help="notify every address in supplied targets, ranges, or lists")
     for command, workers in ((send_parser, 1), (all_parser, 16)):
-        command.add_argument("target", help="receiver hostname/IP or IPv4 pattern (e.g. 10.42.1-13.(10,20)), optionally with :port")
+        command.add_argument("target", help="receiver hostname/IP or IPv4 pattern (e.g. 10.1-13.1.(10,20)), optionally with :port")
         command.add_argument("message", help="message text (put it in quotes)")
         command.add_argument("--also", action="append", default=[], metavar="HOST", help="another receiver or IPv4 pattern; repeat for multiple targets")
         command.add_argument("--title", default="Message")

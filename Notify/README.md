@@ -54,6 +54,10 @@ notify listen
 ```
 
 Leave this running. It listens on TCP port **8765** on all IPv4 interfaces.
+To run without keeping the terminal open, use `notify listen --background`.
+This starts a detached receiver and writes startup output to
+`~/.config/notify/receiver.log` (under `XDG_CONFIG_HOME` if configured).
+Stop a foreground listener with Ctrl+C before switching to background mode.
 No keys or key generation are required.
 Use `--host 192.168.1.20` to bind one interface or `--port 9000` to change the port.
 If the receiver has a firewall, allow that port from your sender's IP.
@@ -81,16 +85,16 @@ Text is displayed literally, including shell characters and HTML tags.
 ## Notify all targets in ranges or lists
 
 ```sh
-notify all '10.42.1-13.10' "Please save your work"
+notify all '10.1-13.1.10' "Please save your work"
 notify all '10.42.1.(10,20,30,40)' "Meeting in five minutes"
-notify all '10.42.1-13.(10,20,30,40)' "Maintenance starts soon" --title Reminder
-notify all '10.42.1-3.10-20:9000' "Hello" --also '10.42.5.(10,30):9000'
+notify all '10.1-13.1.(10,20,30,40)' "Maintenance starts soon" --title Reminder
+notify all '10.1-3.1.10-20:9000' "Hello" --also '10.42.5.(10,30):9000'
 ```
 
 Ranges are inclusive. Lists use parentheses and commas; list entries can also
-be ranges, e.g. `(10,20-25,40)`. Both the third and fourth octets support this
-syntax; the first two must be fixed numbers. When both octets contain ranges or
-lists, every combination is targeted: `10.42.1-13.(10,20,30,40)` targets **52**
+be ranges, e.g. `(10,20-25,40)`. Both the second and fourth octets support this
+syntax; the first and third must be fixed numbers. When both octets contain ranges or
+lists, every combination is targeted: `10.1-13.1.(10,20,30,40)` targets **52**
 addresses. Octets must be 0-255 and ranges must be ascending. Quote patterns,
 especially those containing parentheses, to prevent the shell interpreting them.
 
@@ -125,8 +129,9 @@ notify autostart
 
 This writes `~/.config/autostart/notify.desktop`, following the
 [desktop autostart standard](https://specifications.freedesktop.org/autostart/latest/).
-It starts the receiver at the next graphical login. Run `notify listen` to start
-it now; stop a manually started receiver with Ctrl+C before starting another.
+It starts the receiver in the background at the next graphical login. Run
+`notify listen --background` to start it now; stop a manually started receiver
+with Ctrl+C before starting another.
 The login entry uses the current program's absolute path, so keep the installed
 file there. Custom `--host`, `--port`, and `--key-file` settings also work here.
 
@@ -159,7 +164,7 @@ then explicitly pass `--key-file` on both ends:
 
 ```sh
 notify listen --key-file ~/.config/notify/key
-notify all '10.42.1-13.10' "Hello" --key-file ~/.config/notify/key
+notify all '10.1-13.1.10' "Hello" --key-file ~/.config/notify/key
 notify autostart --key-file ~/.config/notify/key
 ```
 
@@ -189,6 +194,43 @@ specify its port explicitly, e.g. `https://desktop.example:443`.
   clocks. Every receiver starts with an empty replay cache.
 - **Address already in use:** another receiver may already be running; stop it
   or choose another port.
+
+To check the default listening port on a receiving machine:
+
+```sh
+ss -ltnp 'sport = :8765'
+```
+
+Look for `LISTEN` at `0.0.0.0:8765` (the default) or the receiver's LAN IP.
+An empty result means nothing is listening on that TCP port. A listener at
+`127.0.0.1:8765` accepts only local connections. Substitute your configured
+port if you changed it. Ping checks ICMP reachability, not the notification port;
+a refused TCP connection usually means no listener or a firewall rejecting it.
+
+If deployment could not detect the user's desktop, startup waits for the next
+graphical login. To start immediately,
+run this in the receiving user's Linux desktop terminal, without `sudo`:
+
+```sh
+notify listen
+```
+
+If deployed with authentication, use
+`notify listen --key-file ~/.config/notify/key` instead (or your custom key path).
+Leave the terminal running. The command prints startup errors directly. To check
+the deployment's saved user, bind address, port, and key path, inspect the desktop
+login entry as the configured receiving user:
+
+```sh
+cat ~/.config/autostart/notify.desktop
+```
+
+Use the configured `notify_config_home` path if you changed that directory.
+For background operation, use `notify listen --background` and inspect
+`~/.config/notify/receiver.log` for startup errors. The playbook tries to start
+the receiver immediately using the configured user's desktop session environment;
+if that environment is unavailable, the login entry starts it at the next
+graphical login.
 
 Run the automated tests from this folder:
 

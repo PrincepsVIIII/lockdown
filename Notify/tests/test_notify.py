@@ -247,11 +247,12 @@ class LocalTests(unittest.TestCase):
 
     def test_ipv4_ranges_and_lists(self):
         cases = (
-            ("10.42.1-13.10", ["10.42.{}.10".format(a) for a in range(1, 14)]),
+            ("10.1-14.1.10", ["10.{}.1.10".format(a) for a in range(1, 15)]),
             ("10.42.1.(10,20,30,40)", ["10.42.1.{}".format(b) for b in (10, 20, 30, 40)]),
-            ("10.42.1-2.10-11:9000", ["10.42.{}.{}:9000".format(a, b) for a in (1, 2) for b in (10, 11)]),
-            ("https://10.42.(1,3).(10,20):443/", ["https://10.42.{}.{}:443".format(a, b) for a in (1, 3) for b in (10, 20)]),
-            ("10.42.(1, 2-3,2).(0,255)", ["10.42.{}.{}".format(a, b) for a in (1, 2, 3) for b in (0, 255)]),
+            ("10.1-2.1.10-11:9000", ["10.{}.1.{}:9000".format(a, b) for a in (1, 2) for b in (10, 11)]),
+            ("https://10.(1,3).1.(10,20):443/", ["https://10.{}.1.{}:443".format(a, b) for a in (1, 3) for b in (10, 20)]),
+            ("10.(1, 2-3,2).1.(0,255)", ["10.{}.1.{}".format(a, b) for a in (1, 2, 3) for b in (0, 255)]),
+            ("10.(0,255).1.(10,20-21)", ["10.{}.1.{}".format(a, b) for a in (0, 255) for b in (10, 20, 21)]),
             ("office-pc.example.test", ["office-pc.example.test"]),
             ("[::1]:9000", ["[::1]:9000"]),
         )
@@ -260,10 +261,12 @@ class LocalTests(unittest.TestCase):
                 self.assertEqual(notify.expand_target(target), expected)
 
     def test_invalid_ranges_are_rejected_before_delivery(self):
-        for target in ("10.42.13-1.10", "10.42.1.10-256", "10.42.1.(-1,2)",
+        for target in ("10.13-1.1.10", "10.42.1.10-256", "10.42.1.(-1,2)",
                        "10.42.1.()", "10.42.1.(1,,2)", "10.42.1.1,2",
                        "10.42.1.(1,2", "10.42.1.1-2-3", "10-11.42.1.10",
-                       "10.42.(1,2).1:0", "256.42.1-2.10"):
+                       "10.(1,2).1.10:0", "256.1-2.1.10", "10.1-256.1.10",
+                       "10.().1.10", "10.1-2.256.10", "10.42.1-2.10",
+                       "10.42.(1,2).10", "10.1-2.1-2.10"):
             with self.subTest(target=target), self.assertRaises(ValueError):
                 notify.expand_target(target)
         with mock.patch.object(notify, "send_one") as sender, contextlib.redirect_stderr(io.StringIO()):
@@ -272,8 +275,15 @@ class LocalTests(unittest.TestCase):
 
     def test_overlapping_targets_are_deduplicated(self):
         self.assertEqual(notify.expand_targets([
-            "10.42.1-2.(10,10,20)", "10.42.2.10", "http://10.42.1.10:8765",
-        ]), ["10.42.1.10", "10.42.1.20", "10.42.2.10", "10.42.2.20"])
+            "10.1-2.1.(10,10,20)", "10.2.1.10", "http://10.1.1.10:8765",
+        ]), ["10.1.1.10", "10.1.1.20", "10.2.1.10", "10.2.1.20"])
+
+    def test_second_octet_range_cli_sends_every_combination(self):
+        with mock.patch.object(notify, "send_one", return_value=(True, "sent")) as sender, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(notify.main(["all", "10.13-14.1.(10,20)", "Hello"]), 0)
+        self.assertCountEqual([call.args[0] for call in sender.call_args_list],
+                              ["10.13.1.10", "10.13.1.20", "10.14.1.10", "10.14.1.20"])
 
     def test_all_uses_concurrent_deliveries_and_counts_failures(self):
         barrier = threading.Barrier(2)

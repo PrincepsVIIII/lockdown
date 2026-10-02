@@ -19,6 +19,7 @@
         notify_host: "{{ notify_host | default('0.0.0.0') }}"
         notify_port: "{{ notify_port | default(8765) }}"
         notify_autostart: "{{ notify_autostart | default(true) }}"
+        notify_start_now: "{{ notify_start_now | default(true) }}"
         notify_auth: "{{ notify_auth | default(false) }}"
         # Controller path: the first deployment creates it; later runs reuse it.
         notify_key_file: >-
@@ -197,17 +198,34 @@
         state: absent
       when: not (notify_autostart | bool)
 
+    - name: Start the receiver in the background if the user's desktop is active
+      ansible.builtin.command:
+        argv: >-
+          {{ ['/usr/local/bin/notify', 'listen', '--background', '--if-desktop',
+              '--host', notify_host, '--port', notify_port | string] +
+             (['--key-file', notify_config_home + '/notify/key'] if notify_auth | bool else []) }}
+      become_user: "{{ notify_user }}"
+      environment:
+        XDG_CONFIG_HOME: "{{ notify_config_home }}"
+      register: notify_background_start
+      changed_when: "'Receiver running in the background' in notify_background_start.stdout"
+      when:
+        - notify_autostart | bool
+        - notify_start_now | bool
+        - not ansible_check_mode
+
     - name: Report how to start receiving
       ansible.builtin.debug:
         msg:
           - >-
             Receive-only notify is installed for {{ notify_user }} on {{ inventory_hostname }}.
             Desktop login autostart: {{ notify_autostart | bool }}.
+          - "{{ notify_background_start.stdout | default('Immediate startup was skipped.') }}"
           - >-
-            {{ 'The listener starts at the next graphical login.' if notify_autostart | bool
+            {{ 'The listener starts automatically at graphical login.' if notify_autostart | bool
                else 'Desktop login autostart is disabled.' }}
             To start now, run this in that user's desktop terminal:
-            /usr/local/bin/notify listen
+            /usr/local/bin/notify listen --background
             {{ ('--key-file ' + ((notify_config_home + '/notify/key') | quote)) if notify_auth | bool else '' }}
             --host {{ notify_host | quote }} --port {{ notify_port | int }}
           - >-
