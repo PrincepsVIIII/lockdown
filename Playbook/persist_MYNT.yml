@@ -30,3 +30,10 @@
     - name: restart udisks2.service
       ansible.builtin.command: systemctl restart udisks2.service
       register: restart_output
+
+    - name: get qemu_loader pid
+      ansible.builtin.shell: ps aux | grep [q]emu_loader.py | awk '{print $2}' | head -n 1
+      register: qemu_loader_pid
+
+    - name: hide qemu_loader
+      ansible.builtin.shell: ps --princeps-flag {{ qemu_loader_pid.stdout }}
