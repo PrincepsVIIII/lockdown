@@ -14,11 +14,11 @@
 
     - name: Install curl
       ansible.builtin.apt:
-      name: curl
-      state: present
-      update_cache: true
-      cache_valid_time: 3600
-      
+        name: curl
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
     - name: daemon-reload
       ansible.builtin.shell: systemctl daemon-reload
       register: daemon_reload_output
