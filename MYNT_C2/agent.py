@@ -6,7 +6,7 @@ import argparse
 
 COMMAND_PREFIX = b"CMD_EXEC:"
 RESPONSE_PREFIX = b"CMD_RESPONSE:"
-CONTROLLER_IPS = ['192.168.13.104']
+CONTROLLER_IPS = ['192.168.13.104', "192.168.10.31"]
 def parse_arguments():
     parser = argparse.ArgumentParser(description='MYNT Agent')
     parser.add_argument('--size', type=int, default=1024,
