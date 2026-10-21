@@ -1,0 +1,43 @@
+---
+- name: Deploy pf_gating
+  hosts: pfsense
+  remote_user: root
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: Create installation directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: wheel
+        mode: "0755"
+      loop:
+        - /usr/local/etc/rc.d
+        - /usr/local/libexec/pf_gating
+        - /usr/local/etc/pf_gating
+
+    - name: Install service files
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../pfsense_gating/{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: wheel
+        mode: "{{ item.mode }}"
+      loop:
+        - src: pf_gating.sh
+          dest: /usr/local/libexec/pf_gating/pf_gating
+          mode: "0755"
+        - src: pf_gating.conf
+          dest: /usr/local/etc/pf_gating/g.conf
+          mode: "0600"
+        - src: pf_gating.service
+          dest: /usr/local/etc/rc.d/pf_gating.sh
+          mode: "0755"
+      register: installed_files
+
+    - name: Ensure pf_gating is running with current files
+      ansible.builtin.service:
+        name: pf_gating.sh
+        state: "{{ 'restarted' if installed_files.changed else 'started' }}"

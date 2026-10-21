@@ -4,8 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/touch /tmp/pf_gating.conf
-ExecStart=/bin/sh /pf_gating.sh
+ExecStart=/bin/sh /pf_gating
 Restart=always
 
 [Install]
