@@ -1,6 +1,5 @@
 
 #!/bin/sh
-trap 'exit 130' INT
 
 ANCHOR="pf_gating"
 RULES="/pf_gating.conf"
@@ -16,6 +15,7 @@ restore_parent() {
     pfctl -f "$PARENT"
     pfctl -a "$ANCHOR" -F rules
     rm -f "$BACKUP"
+    exit 255
 }
 
 trap restore_parent EXIT INT TERM
@@ -37,7 +37,7 @@ pfctl -f "$PARENT" || exit 1
 
 while true; do
     current_min=$(date +%M)
-    current_min=$({current_min#0})
+    current_min=${current_min#0}
 
     if [ $((current_min % 5)) -eq 0 ] &&
        [ "$current_min" != "$LAST_MIN" ]; then
