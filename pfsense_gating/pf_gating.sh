@@ -14,7 +14,7 @@ second_octet=$(ifconfig "$iface" | awk '
         exit
     }
 ')
-port="11${second_octet}"
+port="${second_octet}11"
 
 # Preserve the generated parent ruleset.
 cp "$PARENT" "$BACKUP" || exit 1
