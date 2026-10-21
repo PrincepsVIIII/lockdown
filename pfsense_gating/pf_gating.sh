@@ -37,7 +37,7 @@ pfctl -f "$PARENT" || exit 1
 
 while true; do
     current_min=$(date +%M)
-    current_min=$((current_min + 0))
+    current_min=$({current_min#0})
 
     if [ $((current_min % 5)) -eq 0 ] &&
        [ "$current_min" != "$LAST_MIN" ]; then
