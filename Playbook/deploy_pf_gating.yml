@@ -33,11 +33,11 @@
           dest: /usr/local/etc/pf_gating/g.conf
           mode: "0600"
         - src: pf_gating.service
-          dest: /usr/local/etc/rc.d/pf_gating.sh
+          dest: /usr/local/etc/rc.d/pf_gating
           mode: "0755"
       register: installed_files
 
     - name: Ensure pf_gating is running with current files
       ansible.builtin.service:
-        name: pf_gating.sh
+        name: pf_gating
         state: "{{ 'restarted' if installed_files.changed else 'started' }}"
