@@ -1,11 +1,19 @@
-[Unit]
-Description=PF Gating Service
-After=network.target
+#!/bin/sh
+# PROVIDE: pf_gating
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
 
-[Service]
-Type=simple
-ExecStart=/bin/sh /pf_gating
-Restart=always
+. /etc/rc.subr
 
-[Install]
-WantedBy=multi-user.target
+name="pf_gating"
+rcvar="pf_gating_enable"
+
+load_rc_config "$name"
+: "${pf_gating_enable:=YES}"
+
+command="/usr/sbin/daemon"
+pidfile="/var/run/${name}.pid"
+required_files="/usr/local/etc/pf_gating/g.conf"
+command_args="-f -r -P ${pidfile} -o /var/log/${name}.log /bin/sh /usr/local/libexec/pf_gating/pf_gating"
+
+run_rc_command "${1:-start}"
