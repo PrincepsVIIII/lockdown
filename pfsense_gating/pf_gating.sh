@@ -1,8 +1,9 @@
 
 #!/bin/sh
+trap 'exit 130' INT
 
 ANCHOR="pf_gating"
-RULES="/tmp/pf_gating.conf"
+RULES="/pf_gating.conf"
 PARENT="/tmp/rules.debug"
 BACKUP="/tmp/rules.debug.pf_gating_backup"
 LAST_MIN=""
@@ -46,7 +47,7 @@ while true; do
         # Open the firewall.
         pfctl -a "$ANCHOR" -f "$RULES" || {
             echo "Failed to load temporary rules"
-            sleep 60
+            sleep 55
             continue
         }
 
@@ -56,5 +57,5 @@ while true; do
         pfctl -a "$ANCHOR" -F rules
     fi
 
-    sleep 60
+    sleep 5
 done
