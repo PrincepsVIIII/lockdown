@@ -6,7 +6,7 @@ RULES="/usr/local/etc/pf_gating/g.conf"
 PARENT="/tmp/rules.debug"
 BACKUP="/tmp/rules.debug.pf_gating_backup"
 LAST_MIN=""
-iface="vtnet0"  
+iface="vtnet1"  
 second_octet=$(ifconfig "$iface" | awk '
     $1 == "inet" {
         split($2, octets, ".")
