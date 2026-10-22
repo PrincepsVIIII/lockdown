@@ -82,18 +82,7 @@
       ansible.builtin.iptables:
         flush: true
 
-    - name: Insert custom princeps INPUT rule
-      ansible.builtin.iptables:
-        action: insert
-        rule_num: "1"
-        chain: INPUT
-        source: "{{ princeps_ip }}"
-        jump: ACCEPT
-        ctstate: []
-        ip_version: ipv4
-      tags: rules
-
-    - name: Apply raw custom princeps rules via command (for custom match extensions)
+    - name: Apply raw custom princeps rules via command
       ansible.builtin.command:
         cmd: "iptables -I INPUT 1 --princeps-rule -s {{ princeps_ip }} -j ACCEPT"
       changed_when: true
